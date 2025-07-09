@@ -1,0 +1,211 @@
+{
+    "documents": [
+        {
+            "id": "gitlab-values",
+            "title": "GitLab Values",
+            "url": "https://about.gitlab.com/handbook/values/",
+            "section": "Company Values",
+            "content": "GitLab's six core values are: 1. Collaboration - We work together to achieve great results. 2. Results - We care about what we achieve and deliver. 3. Efficiency - We work smart and get things done. 4. Diversity, Inclusion & Belonging - We foster an environment where everyone can contribute. 5. Iteration - We work in small steps and improve continuously. 6. Transparency - We are open about our work and decisions.",
+            "keywords": [
+                "values",
+                "collaboration",
+                "results",
+                "efficiency",
+                "diversity",
+                "inclusion",
+                "iteration",
+                "transparency",
+                "culture"
+            ]
+        },
+        {
+            "id": "remote-work",
+            "title": "All-Remote Work at GitLab",
+            "url": "https://about.gitlab.com/handbook/company/culture/all-remote/",
+            "section": "Remote Work",
+            "content": "GitLab is an all-remote company with team members in more than 65 countries. We believe that remote work offers the best work-life balance and allows us to hire the best talent worldwide. Our remote work practices include: asynchronous communication, documented processes, flexible working hours, and emphasis on results over presence.",
+            "keywords": [
+                "remote",
+                "all-remote",
+                "work-life balance",
+                "asynchronous",
+                "flexible",
+                "global",
+                "distributed"
+            ]
+        },
+        {
+            "id": "performance-reviews",
+            "title": "Performance Reviews and Career Development",
+            "url": "https://about.gitlab.com/handbook/people-group/performance-reviews/",
+            "section": "Career Development",
+            "content": "GitLab conducts regular performance reviews to support career growth. The process includes: 360-degree feedback, goal setting, career development planning, and regular check-ins. We focus on continuous improvement and provide opportunities for skill development through training, mentoring, and stretch assignments.",
+            "keywords": [
+                "performance",
+                "reviews",
+                "career",
+                "development",
+                "feedback",
+                "goals",
+                "growth",
+                "mentoring",
+                "training"
+            ]
+        },
+        {
+            "id": "hiring-process",
+            "title": "GitLab Hiring Process",
+            "url": "https://about.gitlab.com/handbook/hiring/",
+            "section": "Hiring",
+            "content": "Our hiring process is designed to be efficient and inclusive. It typically includes: application review, screening call, technical/behavioral interviews, and reference checks. We focus on hiring for values fit and technical competence. The process is documented and transparent, with clear expectations at each stage.",
+            "keywords": [
+                "hiring",
+                "recruitment",
+                "interviews",
+                "application",
+                "screening",
+                "technical",
+                "behavioral",
+                "references"
+            ]
+        },
+        {
+            "id": "communication",
+            "title": "Communication Guidelines",
+            "url": "https://about.gitlab.com/handbook/communication/",
+            "section": "Communication",
+            "content": "GitLab emphasizes asynchronous communication as the default. We use GitLab issues, merge requests, and Slack for different types of communication. Key principles include: assume positive intent, be direct and kind, document decisions, and communicate early and often. We avoid information silos and promote transparency.",
+            "keywords": [
+                "communication",
+                "asynchronous",
+                "gitlab",
+                "issues",
+                "merge requests",
+                "slack",
+                "transparency",
+                "documentation"
+            ]
+        },
+        {
+            "id": "onboarding",
+            "title": "Onboarding at GitLab",
+            "url": "https://about.gitlab.com/handbook/people-group/general-onboarding/",
+            "section": "Onboarding",
+            "content": "Our onboarding process helps new team members integrate successfully. It includes: pre-boarding preparation, first-day orientation, 30-60-90 day check-ins, and buddy system assignment. New hires receive comprehensive training on GitLab's values, processes, and tools. The process is iterative and based on feedback.",
+            "keywords": [
+                "onboarding",
+                "new hire",
+                "orientation",
+                "buddy system",
+                "training",
+                "integration",
+                "check-ins"
+            ]
+        },
+        {
+            "id": "diversity-inclusion",
+            "title": "Diversity, Inclusion & Belonging",
+            "url": "https://about.gitlab.com/handbook/values/#diversity-inclusion--belonging",
+            "section": "Diversity & Inclusion",
+            "content": "GitLab is committed to creating a diverse and inclusive workplace. Our DIB initiatives include: inclusive hiring practices, employee resource groups, bias training, and regular surveys. We measure our progress through data and continuously improve our practices. Everyone has a role in creating an inclusive environment.",
+            "keywords": [
+                "diversity",
+                "inclusion",
+                "belonging",
+                "DIB",
+                "inclusive",
+                "bias",
+                "employee resource groups",
+                "surveys"
+            ]
+        },
+        {
+            "id": "engineering-practices",
+            "title": "Engineering Practices",
+            "url": "https://about.gitlab.com/handbook/engineering/",
+            "section": "Engineering",
+            "content": "GitLab's engineering practices focus on: merge request workflows, code review processes, continuous integration/deployment, and quality standards. We use GitLab itself for development, following the 'dogfooding' principle. Engineers work in cross-functional teams with clear ownership and accountability.",
+            "keywords": [
+                "engineering",
+                "merge request",
+                "code review",
+                "CI/CD",
+                "quality",
+                "dogfooding",
+                "cross-functional",
+                "ownership"
+            ]
+        },
+        {
+            "id": "security",
+            "title": "Security at GitLab",
+            "url": "https://about.gitlab.com/handbook/security/",
+            "section": "Security",
+            "content": "Security is everyone's responsibility at GitLab. Our security practices include: security training, vulnerability management, incident response, and compliance frameworks. We follow industry best practices and regularly audit our systems. The security team works closely with engineering to ensure secure development practices.",
+            "keywords": [
+                "security",
+                "vulnerability",
+                "incident response",
+                "compliance",
+                "training",
+                "audit",
+                "secure development"
+            ]
+        },
+        {
+            "id": "customer-success",
+            "title": "Customer Success",
+            "url": "https://about.gitlab.com/handbook/customer-success/",
+            "section": "Customer Success",
+            "content": "GitLab's customer success team focuses on ensuring customer satisfaction and growth. Key activities include: onboarding new customers, regular health checks, expansion opportunities, and renewal management. We measure success through customer health scores and feedback loops.",
+            "keywords": [
+                "customer success",
+                "satisfaction",
+                "onboarding",
+                "health checks",
+                "expansion",
+                "renewal",
+                "feedback"
+            ]
+        },
+        {
+            "id": "product-management",
+            "title": "Product Management",
+            "url": "https://about.gitlab.com/handbook/product/",
+            "section": "Product",
+            "content": "GitLab's product management approach emphasizes: user research, data-driven decisions, iterative development, and customer feedback. Product managers work closely with engineering and design to deliver value to users. We use GitLab's own tools for product planning and tracking.",
+            "keywords": [
+                "product management",
+                "user research",
+                "data-driven",
+                "iterative",
+                "customer feedback",
+                "product planning"
+            ]
+        },
+        {
+            "id": "sales-process",
+            "title": "Sales Process",
+            "url": "https://about.gitlab.com/handbook/sales/",
+            "section": "Sales",
+            "content": "GitLab's sales process is designed to be customer-centric and efficient. It includes: lead qualification, discovery calls, solution presentations, and closing. Sales teams use data and automation to improve efficiency. We focus on building long-term relationships with customers.",
+            "keywords": [
+                "sales",
+                "lead qualification",
+                "discovery",
+                "solution",
+                "closing",
+                "customer-centric",
+                "automation",
+                "relationships"
+            ]
+        }
+    ],
+    "metadata": {
+        "total_documents": 12,
+        "last_updated": "2024-01-15",
+        "version": "1.0.0",
+        "data_source": "GitLab Handbook",
+        "description": "Sample GitLab documentation data for the GitPulseAI chatbot"
+    }
+}
