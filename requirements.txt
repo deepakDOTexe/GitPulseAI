@@ -1,26 +1,31 @@
-# Core Dependencies
 streamlit>=1.28.0
-openai>=1.3.0
 python-dotenv>=1.0.0
 pandas>=2.0.0
 numpy>=1.24.0
-
-# Vector Operations
 scikit-learn>=1.3.0
-scipy>=1.11.0
 
-# Text Processing
+# Hugging Face Embeddings (Local, Free)
+sentence-transformers>=2.2.0
+torch>=2.0.0
+transformers>=4.30.0
+
+# Google Gemini LLM (Generous Free Tier)
+google-generativeai>=0.3.0
+
+# Text processing
 langchain-text-splitters>=0.0.1
-tiktoken>=0.5.0
 
-# Web Requests
+# HTTP requests
 requests>=2.31.0
 
-# Development Dependencies
-pytest>=7.4.0
-black>=23.0.0
-flake8>=6.0.0
+# Logging and utilities
+colorama>=0.4.6
+tqdm>=4.65.0
 
-# Optional Enhancements
-streamlit-chat>=0.1.0
-streamlit-feedback>=0.1.0 
+# Data processing
+pathlib
+json5>=0.9.0
+
+# Optional: for better performance
+accelerate>=0.20.0
+optimum>=1.12.0 

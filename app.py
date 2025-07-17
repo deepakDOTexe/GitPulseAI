@@ -1,388 +1,445 @@
 """
-GitLab Handbook Assistant - Main Application
+GitLab Handbook Assistant - Streamlit App
 
-A Streamlit-based chatbot that helps users access GitLab's handbook and direction pages
-through conversational AI using RAG (Retrieval-Augmented Generation) architecture.
-
-Author: GitPulseAI Team
-Version: 1.0.0
+This is a Streamlit-based chat interface for the GitLab Handbook Assistant.
+It uses a hybrid RAG system with Hugging Face embeddings and Google Gemini LLM.
 """
 
 import streamlit as st
-import os
-from dotenv import load_dotenv
-from typing import Dict, List, Optional
 import logging
+from typing import Dict, Any, List
 from datetime import datetime
-
-# Load environment variables
-load_dotenv()
+import traceback
+import os
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/chatbot.log'),
+        logging.FileHandler('logs/app.log'),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
-# Import custom modules (will be created in subsequent tasks)
-# from src.rag_system import RAGSystem
-# from src.data_processor import DataProcessor
-# from src.config import Config
+# Import our hybrid RAG system
+from src.hybrid_rag_system import create_hybrid_rag_system, HybridRAGSystem
+from src.config import config
 
-def configure_page():
-    """Configure the Streamlit page with proper settings and theme."""
-    st.set_page_config(
-        page_title="GitLab Handbook Assistant",
-        page_icon="🦊",
-        layout="wide",
-        initial_sidebar_state="collapsed",
-        menu_items={
-            'Get help': 'https://github.com/YourUsername/GitPulseAI',
-            'Report a bug': 'https://github.com/YourUsername/GitPulseAI/issues',
-            'About': """
-            # GitLab Handbook Assistant
-            
-            An AI-powered chatbot that helps you navigate GitLab's handbook and direction pages.
-            Built with Streamlit, OpenAI, and RAG architecture.
-            
-            Version: 1.0.0
-            """
-        }
-    )
+# Page configuration
+st.set_page_config(
+    page_title="GitLab Handbook Assistant",
+    page_icon="🦊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-def initialize_session_state():
-    """Initialize Streamlit session state variables."""
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    
-    if "conversation_id" not in st.session_state:
-        st.session_state.conversation_id = f"conv_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    
-    if "rag_system" not in st.session_state:
-        st.session_state.rag_system = None
-    
-    if "user_preferences" not in st.session_state:
-        st.session_state.user_preferences = {
-            "high_contrast": False,
-            "show_sources": True,
-            "show_follow_ups": True
-        }
-
-def validate_environment():
-    """Validate that all required environment variables are set."""
-    required_vars = [
-        'OPENAI_API_KEY'
-    ]
-    
-    missing_vars = []
-    for var in required_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-    
-    if missing_vars:
-        st.error(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
-        st.info("Please create a .env file with the required variables. See .env.example for reference.")
-        st.stop()
-
-def render_header():
-    """Render the application header with GitLab branding."""
-    st.markdown("""
-    <div style="text-align: center; padding: 1rem 0;">
-        <h1 style="color: #FC6D26; margin-bottom: 0;">🦊 GitLab Handbook Assistant</h1>
-        <p style="color: #666; font-size: 1.1rem; margin-top: 0;">
-            Your AI-powered guide to GitLab's culture, processes, and policies
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-def render_sidebar():
-    """Render the sidebar with user preferences and information."""
-    with st.sidebar:
-        st.header("⚙️ Settings")
-        
-        # User preferences
-        st.session_state.user_preferences["high_contrast"] = st.checkbox(
-            "High Contrast Mode",
-            value=st.session_state.user_preferences["high_contrast"],
-            help="Improve visibility for accessibility"
-        )
-        
-        st.session_state.user_preferences["show_sources"] = st.checkbox(
-            "Show Sources",
-            value=st.session_state.user_preferences["show_sources"],
-            help="Display source citations for responses"
-        )
-        
-        st.session_state.user_preferences["show_follow_ups"] = st.checkbox(
-            "Show Follow-up Questions",
-            value=st.session_state.user_preferences["show_follow_ups"],
-            help="Display suggested follow-up questions"
-        )
-        
-        st.divider()
-        
-        # Information section
-        st.header("ℹ️ Information")
-        st.markdown("""
-        **How to use:**
-        - Type your question in the chat input
-        - Press Enter or click Send
-        - View sources by expanding the references
-        - Use suggested follow-up questions for more info
-        
-        **Example questions:**
-        - What are GitLab's core values?
-        - How does GitLab handle remote work?
-        - What is the GitLab review process?
-        """)
-        
-        st.divider()
-        
-        # Statistics (placeholder)
-        st.header("📊 Session Stats")
-        st.metric("Messages", len(st.session_state.messages))
-        st.metric("Conversation ID", st.session_state.conversation_id[-8:])
-
-def validate_user_input(user_input: str) -> bool:
-    """
-    Validate and sanitize user input.
-    
-    Args:
-        user_input (str): The user's input message
-        
-    Returns:
-        bool: True if input is valid, False otherwise
-    """
-    # Check for empty input
-    if not user_input.strip():
-        st.warning("⚠️ Please enter a question or message.")
-        return False
-    
-    # Check message length
-    if len(user_input) > 1000:
-        st.warning("⚠️ Message too long. Please keep it under 1000 characters.")
-        return False
-    
-    # Basic content filtering
-    prohibited_patterns = ["<script>", "javascript:", "eval(", "onload="]
-    for pattern in prohibited_patterns:
-        if pattern.lower() in user_input.lower():
-            st.error("❌ Invalid input detected. Please rephrase your question.")
-            return False
-    
-    return True
-
-def process_user_message(user_message: str) -> Dict:
-    """
-    Process user message through the RAG system.
-    
-    Args:
-        user_message (str): The user's message
-        
-    Returns:
-        Dict: Response from the RAG system
-    """
-    # Placeholder implementation - will be replaced with actual RAG system
-    logger.info(f"Processing message: {user_message[:50]}...")
-    
-    # Simulate processing time
-    import time
-    time.sleep(1)
-    
-    # Mock response for now
-    return {
-        "response": f"Thank you for your question about: '{user_message}'. This is a placeholder response. The actual RAG system will be implemented in the next phase.",
-        "sources": [
-            {
-                "title": "GitLab Handbook - Culture",
-                "url": "https://about.gitlab.com/handbook/company/culture/",
-                "relevance_score": 0.85
-            },
-            {
-                "title": "GitLab Values",
-                "url": "https://about.gitlab.com/handbook/values/",
-                "relevance_score": 0.78
-            }
-        ],
-        "suggested_questions": [
-            "What are GitLab's core values?",
-            "How does GitLab approach remote work?",
-            "What is GitLab's hiring process?"
-        ]
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .main-header {
+        color: #FC6D26;
+        font-size: 2.5rem;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 2rem;
     }
+    
+    .chat-message {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        word-wrap: break-word;
+    }
+    
+    .user-message {
+        background-color: #e8f4f8;
+        border-left: 4px solid #1f77b4;
+    }
+    
+    .assistant-message {
+        background-color: #f0f8e8;
+        border-left: 4px solid #2ca02c;
+    }
+    
+    .source-box {
+        background-color: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 0.3rem;
+        margin: 0.5rem 0;
+        border: 1px solid #dee2e6;
+    }
+    
+    .system-status {
+        font-size: 0.9rem;
+        color: #666;
+        margin-top: 1rem;
+    }
+    
+    .error-message {
+        background-color: #ffe6e6;
+        border-left: 4px solid #ff4444;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+    }
+    
+    .success-message {
+        background-color: #e6ffe6;
+        border-left: 4px solid #00cc00;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+    }
+    
+    .warning-message {
+        background-color: #fff3e0;
+        border-left: 4px solid #ff9800;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+    }
+    
+    .sidebar-info {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-def render_chat_message(message: Dict, is_user: bool = False):
+# Initialize session state
+if 'rag_system' not in st.session_state:
+    st.session_state.rag_system = None
+if 'conversation_history' not in st.session_state:
+    st.session_state.conversation_history = []
+if 'system_initialized' not in st.session_state:
+    st.session_state.system_initialized = False
+if 'initialization_error' not in st.session_state:
+    st.session_state.initialization_error = None
+
+def initialize_rag_system() -> bool:
     """
-    Render a chat message with proper formatting.
+    Initialize the hybrid RAG system with Hugging Face and Gemini.
+    
+    Returns:
+        bool: True if initialization successful
+    """
+    try:
+        logger.info("Initializing hybrid RAG system...")
+        
+        # Check for required API key
+        if not config.GEMINI_API_KEY:
+            st.session_state.initialization_error = "Google Gemini API key not configured. Please set GEMINI_API_KEY in your environment."
+            return False
+        
+        # Create hybrid RAG system
+        rag_system = create_hybrid_rag_system(
+            gemini_api_key=config.GEMINI_API_KEY,
+            data_file=None,  # Use default data
+            embedding_model="all-MiniLM-L6-v2",  # Free Hugging Face model
+            gemini_model="gemini-1.5-flash"  # Fast Gemini model
+        )
+        
+        if not rag_system.is_initialized:
+            st.session_state.initialization_error = rag_system.initialization_error
+            return False
+        
+        st.session_state.rag_system = rag_system
+        st.session_state.system_initialized = True
+        st.session_state.initialization_error = None
+        
+        logger.info("Hybrid RAG system initialized successfully")
+        return True
+        
+    except Exception as e:
+        error_msg = f"Failed to initialize hybrid RAG system: {str(e)}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        st.session_state.initialization_error = error_msg
+        return False
+
+def get_response(query: str) -> Dict[str, Any]:
+    """
+    Get response from the hybrid RAG system.
     
     Args:
-        message (Dict): Message data
-        is_user (bool): Whether this is a user message
+        query: User query
+        
+    Returns:
+        Dict: Response with answer, sources, and metadata
     """
-    role = "user" if is_user else "assistant"
+    if not st.session_state.system_initialized or not st.session_state.rag_system:
+        return {
+            "answer": "System not initialized. Please check the system status.",
+            "sources": [],
+            "error": "System not initialized",
+            "timestamp": datetime.now().isoformat()
+        }
     
-    with st.chat_message(role):
-        st.markdown(message["content"])
+    try:
+        # Convert conversation history to the expected format
+        conversation_history = []
+        for msg in st.session_state.conversation_history:
+            if msg["role"] == "user":
+                conversation_history.append({"user": msg["content"]})
+            elif msg["role"] == "assistant":
+                conversation_history.append({"assistant": msg["content"]})
         
-        # Show sources if available and enabled
-        if not is_user and message.get("sources") and st.session_state.user_preferences["show_sources"]:
-            with st.expander("📚 Sources & References"):
-                for source in message["sources"]:
-                    st.markdown(f"- [{source['title']}]({source['url']})")
-                    if source.get("relevance_score"):
-                        st.caption(f"Relevance: {source['relevance_score']:.2f}")
+        # Get response from hybrid RAG system
+        response = st.session_state.rag_system.query(query, conversation_history)
         
-        # Show suggested follow-up questions
-        if not is_user and message.get("suggested_questions") and st.session_state.user_preferences["show_follow_ups"]:
-            st.markdown("**💭 You might also ask:**")
-            cols = st.columns(min(len(message["suggested_questions"]), 3))
-            for i, question in enumerate(message["suggested_questions"]):
-                with cols[i % 3]:
-                    if st.button(question, key=f"suggest_{len(st.session_state.messages)}_{i}"):
-                        # Add the suggested question as a user message
-                        st.session_state.messages.append({
-                            "role": "user",
-                            "content": question
-                        })
-                        # Process the suggested question
-                        process_chat_input(question)
-                        st.rerun()
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error getting response: {e}")
+        logger.error(traceback.format_exc())
+        return {
+            "answer": f"I apologize, but I encountered an error while processing your query: {str(e)}",
+            "sources": [],
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
-def process_chat_input(user_input: str):
+def display_sources(sources: List[Dict[str, Any]]):
     """
-    Process chat input and generate response.
+    Display source information in the sidebar.
     
     Args:
-        user_input (str): User's input message
+        sources: List of source documents
     """
-    # Validate input
-    if not validate_user_input(user_input):
+    if not sources:
         return
     
-    # Add user message to chat history
-    st.session_state.messages.append({
-        "role": "user",
-        "content": user_input
-    })
+    st.sidebar.subheader("📚 Sources")
     
-    # Process through RAG system
+    for i, source in enumerate(sources, 1):
+        with st.sidebar.expander(f"Source {i}: {source.get('title', 'Unknown')}"):
+            st.write(f"**Relevance:** {source.get('relevance', 'Unknown')}")
+            st.write(f"**Score:** {source.get('similarity_score', 0):.3f}")
+            
+            if source.get('section'):
+                st.write(f"**Section:** {source['section']}")
+            
+            if source.get('url'):
+                st.write(f"**URL:** {source['url']}")
+
+def display_system_stats():
+    """Display system statistics in the sidebar."""
+    if not st.session_state.rag_system:
+        return
+    
     try:
-        with st.spinner("🤔 Thinking..."):
-            response = process_user_message(user_input)
-            
-            # Add assistant response to chat history
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": response["response"],
-                "sources": response.get("sources", []),
-                "suggested_questions": response.get("suggested_questions", [])
-            })
-            
+        stats = st.session_state.rag_system.get_system_stats()
+        
+        st.sidebar.subheader("🔧 System Status")
+        
+        # System type
+        st.sidebar.write(f"**System:** {stats.get('system_type', 'Unknown')}")
+        
+        # Configuration
+        config_info = stats.get('config', {})
+        st.sidebar.write(f"**Embedding Model:** {config_info.get('embedding_model', 'Unknown')}")
+        st.sidebar.write(f"**LLM Model:** {config_info.get('llm_model', 'Unknown')}")
+        st.sidebar.write(f"**Free Tier:** ✅ Yes")
+        
+        # Data stats
+        if stats.get('data_processor'):
+            data_stats = stats['data_processor']
+            st.sidebar.write(f"**Documents:** {data_stats.get('total_documents', 0)}")
+            st.sidebar.write(f"**Chunks:** {data_stats.get('total_chunks', 0)}")
+        
+        # Vector store stats
+        if stats.get('vector_store'):
+            vector_stats = stats['vector_store']
+            st.sidebar.write(f"**Embeddings:** {vector_stats.get('total_documents', 0)}")
+            st.sidebar.write(f"**Dimension:** {vector_stats.get('embedding_dimension', 0)}")
+        
+        # LLM stats
+        if stats.get('llm'):
+            llm_stats = stats['llm']
+            st.sidebar.write(f"**Rate Limit:** {llm_stats.get('rate_limit', 'Unknown')}")
+            st.sidebar.write(f"**Available:** {'✅' if llm_stats.get('available') else '❌'}")
+        
     except Exception as e:
-        logger.error(f"Error processing message: {str(e)}")
-        st.error("❌ An error occurred while processing your message. Please try again.")
-
-def render_welcome_message():
-    """Render the welcome message for new users."""
-    if len(st.session_state.messages) == 0:
-        with st.chat_message("assistant"):
-            st.markdown("""
-            👋 **Welcome to the GitLab Handbook Assistant!**
-            
-            I'm here to help you navigate GitLab's handbook and direction pages. I can assist you with:
-            
-            - 🏢 **Company culture and values**
-            - 📋 **Policies and procedures**
-            - 💼 **Career development guidance**
-            - 🔧 **Technical processes and workflows**
-            - 🌍 **Remote work practices**
-            
-            **How to get started:**
-            1. Type your question in the chat input below
-            2. Press Enter or click the send button
-            3. Explore the sources and follow-up questions in my responses
-            
-            **Example questions to try:**
-            - "What are GitLab's core values?"
-            - "How does GitLab handle performance reviews?"
-            - "What is GitLab's remote work policy?"
-            
-            What would you like to know about GitLab?
-            """)
-
-def render_chat_interface():
-    """Render the main chat interface."""
-    # Render welcome message
-    render_welcome_message()
-    
-    # Render chat history
-    for message in st.session_state.messages:
-        render_chat_message(message, is_user=(message["role"] == "user"))
-    
-    # Chat input
-    if prompt := st.chat_input("Ask me anything about GitLab..."):
-        process_chat_input(prompt)
-        st.rerun()
+        st.sidebar.error(f"Error getting system stats: {e}")
 
 def main():
     """Main application function."""
-    # Configure page
-    configure_page()
     
-    # Validate environment
-    validate_environment()
+    # Header
+    st.markdown('<h1 class="main-header">🦊 GitLab Handbook Assistant</h1>', unsafe_allow_html=True)
     
-    # Initialize session state
-    initialize_session_state()
+    # Initialize system if not already done
+    if not st.session_state.system_initialized:
+        with st.spinner("Initializing system with Hugging Face embeddings and Google Gemini..."):
+            if initialize_rag_system():
+                st.success("✅ System initialized successfully with Hugging Face + Gemini!")
+                st.balloons()
+            else:
+                st.error(f"❌ Failed to initialize system: {st.session_state.initialization_error}")
+                st.stop()
     
-    # Render UI components
-    render_header()
-    render_sidebar()
+    # Sidebar
+    with st.sidebar:
+        st.header("🔧 System Info")
+        
+        # System status
+        if st.session_state.system_initialized:
+            st.success("✅ System Ready")
+            st.write("**Stack:** Hugging Face + Gemini")
+            st.write("**Cost:** 100% Free*")
+            st.write("*Gemini has generous free tier")
+        else:
+            st.error("❌ System Not Ready")
+            if st.session_state.initialization_error:
+                st.error(st.session_state.initialization_error)
+        
+        # Display system stats
+        if st.session_state.system_initialized:
+            display_system_stats()
+        
+        # Configuration info
+        st.header("⚙️ Configuration")
+        
+        # API key status
+        if config.GEMINI_API_KEY:
+            st.success("✅ Gemini API key configured")
+        else:
+            st.error("❌ Gemini API key missing")
+            st.write("Set GEMINI_API_KEY in your environment")
+        
+        # Reinitialize button
+        if st.button("🔄 Reinitialize System"):
+            st.session_state.system_initialized = False
+            st.session_state.rag_system = None
+            st.session_state.conversation_history = []
+            st.rerun()
+        
+        # Clear conversation button
+        if st.button("🗑️ Clear Conversation"):
+            st.session_state.conversation_history = []
+            st.rerun()
+        
+        # Health check
+        if st.session_state.system_initialized and st.button("🏥 Health Check"):
+            try:
+                health = st.session_state.rag_system.health_check()
+                if health['status'] == 'healthy':
+                    st.success("✅ System is healthy")
+                else:
+                    st.error("❌ System has issues")
+                    for check in health['checks']:
+                        if check['status'] == 'failed':
+                            st.error(f"❌ {check['name']}: {check['message']}")
+            except Exception as e:
+                st.error(f"❌ Health check failed: {e}")
     
-    # Add accessibility features
-    st.markdown("""
-    <style>
-    /* Accessibility improvements */
-    .stButton > button {
-        transition: all 0.3s;
-    }
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
+    # Main chat interface
+    st.subheader("💬 Chat with the GitLab Handbook")
     
-    /* High contrast mode */
-    .high-contrast {
-        filter: contrast(150%) brightness(1.2);
-    }
+    # Display conversation history
+    for message in st.session_state.conversation_history:
+        if message["role"] == "user":
+            st.markdown(f'<div class="chat-message user-message">👤 **You:** {message["content"]}</div>', unsafe_allow_html=True)
+        elif message["role"] == "assistant":
+            st.markdown(f'<div class="chat-message assistant-message">🤖 **Assistant:** {message["content"]}</div>', unsafe_allow_html=True)
     
-    /* Focus indicators */
-    .stTextInput > div > div > input:focus {
-        outline: 2px solid #FC6D26;
-        outline-offset: 2px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # Chat input
+    user_input = st.chat_input("Ask about GitLab's handbook, culture, processes, or policies...")
     
-    # Apply high contrast if enabled
-    if st.session_state.user_preferences["high_contrast"]:
-        st.markdown('<div class="high-contrast">', unsafe_allow_html=True)
+    if user_input:
+        # Add user message to history
+        st.session_state.conversation_history.append({
+            "role": "user",
+            "content": user_input,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Show user message
+        st.markdown(f'<div class="chat-message user-message">👤 **You:** {user_input}</div>', unsafe_allow_html=True)
+        
+        # Get response
+        with st.spinner("Thinking..."):
+            response = get_response(user_input)
+        
+        # Display response
+        answer = response.get("answer", "I apologize, but I couldn't generate a response.")
+        st.markdown(f'<div class="chat-message assistant-message">🤖 **Assistant:** {answer}</div>', unsafe_allow_html=True)
+        
+        # Add assistant response to history
+        st.session_state.conversation_history.append({
+            "role": "assistant",
+            "content": answer,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Display sources
+        sources = response.get("sources", [])
+        if sources:
+            display_sources(sources)
+        
+        # Show system info
+        if response.get("system"):
+            st.markdown(f'<div class="system-status">Powered by {response["system"]} • {len(sources)} sources • {response.get("timestamp", "")}</div>', unsafe_allow_html=True)
+        
+        # Show errors or warnings
+        if response.get("error"):
+            st.error(f"Error: {response['error']}")
+        elif response.get("warning"):
+            st.warning(f"Warning: {response['warning']}")
     
-    # Render main chat interface
-    render_chat_interface()
+    # Example questions
+    st.subheader("💡 Example Questions")
     
-    # Add keyboard shortcuts info
-    st.markdown("""
-    <div style="position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.1); 
-                padding: 5px 10px; border-radius: 5px; font-size: 12px;">
-        💡 <strong>Tip:</strong> Use Tab to navigate, Enter to send messages
-    </div>
-    """, unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**About GitLab:**")
+        if st.button("What are GitLab's core values?"):
+            st.session_state.conversation_history.append({
+                "role": "user",
+                "content": "What are GitLab's core values?",
+                "timestamp": datetime.now().isoformat()
+            })
+            st.rerun()
+        
+        if st.button("How does GitLab handle remote work?"):
+            st.session_state.conversation_history.append({
+                "role": "user",
+                "content": "How does GitLab handle remote work?",
+                "timestamp": datetime.now().isoformat()
+            })
+            st.rerun()
+    
+    with col2:
+        st.write("**Processes & Culture:**")
+        if st.button("What is GitLab's engineering process?"):
+            st.session_state.conversation_history.append({
+                "role": "user",
+                "content": "What is GitLab's engineering process?",
+                "timestamp": datetime.now().isoformat()
+            })
+            st.rerun()
+        
+        if st.button("How does GitLab approach diversity and inclusion?"):
+            st.session_state.conversation_history.append({
+                "role": "user",
+                "content": "How does GitLab approach diversity and inclusion?",
+                "timestamp": datetime.now().isoformat()
+            })
+            st.rerun()
+    
+    # Footer
+    st.markdown("---")
+    st.markdown(
+        "🦊 **GitLab Handbook Assistant** • "
+        "Powered by Hugging Face Embeddings + Google Gemini • "
+        "100% Free Solution"
+    )
 
 if __name__ == "__main__":
     main() 

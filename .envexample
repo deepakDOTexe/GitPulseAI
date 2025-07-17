@@ -1,19 +1,33 @@
-# OpenAI API Configuration
-OPENAI_API_KEY=your_openai_api_key
+# Configuration for GitLab Handbook Assistant
+# Copy this to .env and fill in your values
 
-# Application Configuration
-APP_NAME=GitLab Handbook Assistant
-APP_VERSION=1.0.0
-DEBUG=False
+# Data Configuration
+DATA_DIR=data
+PROCESSED_DATA_DIR=data/processed
+LOGS_DIR=logs
 
-# OpenAI Model Configuration
+# OpenAI Configuration (Legacy - Not Used)
+OPENAI_API_KEY=your_openai_api_key_here
 OPENAI_MODEL=gpt-3.5-turbo
 OPENAI_TEMPERATURE=0.1
 OPENAI_MAX_TOKENS=1000
 
+# Google Gemini Configuration (Active - Free Tier)
+GEMINI_API_KEY=your_google_gemini_api_key_here
+GEMINI_MODEL=gemini-1.5-flash
+
+# RAG System Configuration
+LLM_MODEL=gpt-3.5-turbo
+TEMPERATURE=0.1
+MAX_TOKENS=1000
+MAX_CONTEXT_LENGTH=8000
+
 # Embedding Configuration
-EMBEDDING_MODEL=text-embedding-ada-002
-EMBEDDING_DIMENSION=1536
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+EMBEDDING_DIMENSION=384
+
+# System Configuration
+DEBUG=False
 
 # Vector Search Configuration
 SIMILARITY_THRESHOLD=0.7

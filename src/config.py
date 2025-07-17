@@ -20,11 +20,21 @@ class Config:
     APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     
-    # OpenAI Configuration
+    # OpenAI Configuration (Legacy)
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
     OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.1"))
     OPENAI_MAX_TOKENS: int = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
+    
+    # Google Gemini Configuration (Free Tier)
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    
+    # RAG System Configuration
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
+    TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.1"))
+    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "1000"))
+    MAX_CONTEXT_LENGTH: int = int(os.getenv("MAX_CONTEXT_LENGTH", "8000"))
     
     # Embedding Configuration
     EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002")
