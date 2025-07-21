@@ -35,7 +35,7 @@ class Config:
     
     # Data Configuration
     DATA_DIR: str = os.getenv("DATA_DIR", "data")
-    SAMPLE_DATA_FILE: str = os.getenv("SAMPLE_DATA_FILE", "data/gitlab_comprehensive_handbook.json")
+    SAMPLE_DATA_FILE: str = os.getenv("SAMPLE_DATA_FILE", "data/gitlab_complete_handbook.json")
     
     # Logging Configuration
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

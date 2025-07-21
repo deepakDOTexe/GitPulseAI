@@ -444,7 +444,8 @@ def main():
     data_files = [
         "data/gitlab_two_pages.json",
         "data/gitlab_specific_policies.json", 
-        "data/gitlab_comprehensive_handbook.json"
+        "data/gitlab_comprehensive_handbook.json",
+        "data/gitlab_complete_handbook.json"
     ]
     
     print("\nAvailable data files:")
@@ -457,7 +458,7 @@ def main():
             print(f"{i}. {file} (not found)")
     
     try:
-        choice = int(input("\nSelect data file (1-3): ")) - 1
+        choice = int(input("\nSelect data file (1-4): ")) - 1
         if choice < 0 or choice >= len(data_files):
             logger.error("Invalid choice")
             return
