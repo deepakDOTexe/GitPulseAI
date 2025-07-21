@@ -125,9 +125,9 @@ if prompt := st.chat_input("Ask about GitLab's handbook, policies, values, and c
 
 # 5. Generate a new LLM response
 if st.session_state.messages[-1]["role"] != "assistant":
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            response = generate_gitpulse_response(st.session_state.messages[-1]["content"])
-            st.write(response)
+    with st.spinner("Thinking..."):
+        response = generate_gitpulse_response(st.session_state.messages[-1]["content"])
+    # Add assistant response to session state
     message = {"role": "assistant", "content": response}
-    st.session_state.messages.append(message) 
+    st.session_state.messages.append(message)
+    st.rerun() 
