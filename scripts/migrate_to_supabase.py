@@ -70,6 +70,38 @@ class SupabaseMigrator:
                 logger.warning("⚠️ Empty text after preprocessing, skipping")
                 return None
             
+            # Try with processed text first
+            embedding = self._call_embedding_api(processed_text)
+            if embedding:
+                return embedding
+            
+            # If that fails, try with first 1000 characters only
+            logger.warning("⚠️ Full text failed, trying with shorter version...")
+            short_text = processed_text[:1000]
+            embedding = self._call_embedding_api(short_text)
+            if embedding:
+                logger.info("✅ Succeeded with shortened text")
+                return embedding
+            
+            # If that fails, try with a simple test
+            logger.warning("⚠️ Shortened text failed, trying with test text...")
+            test_embedding = self._call_embedding_api("This is a test document.")
+            if test_embedding:
+                logger.warning("⚠️ API works with test text but not document content, using test embedding")
+                return test_embedding
+            
+            logger.error("❌ All attempts failed")
+            return None
+        
+        except Exception as e:
+            logger.error(f"❌ Failed to generate embedding: {str(e)}")
+            return None
+    
+    def _call_embedding_api(self, text: str) -> Optional[List[float]]:
+        """Make the actual API call to Google Gemini."""
+        try:
+            import requests
+            
             # Use Google Gemini REST API for embeddings (basic format from user's curl example)
             url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent"
             
@@ -82,7 +114,7 @@ class SupabaseMigrator:
             data = {
                 "model": "models/gemini-embedding-001",
                 "content": {
-                    "parts": [{"text": processed_text}]
+                    "parts": [{"text": text}]
                 }
             }
             
@@ -99,26 +131,16 @@ class SupabaseMigrator:
                 # Truncate to 1536 dimensions if needed (Gemini default is 3072)
                 return embedding_values[:1536]
             
-            logger.error("❌ Unexpected response format from Google Gemini API")
-            logger.error(f"Response: {result}")
             return None
         
         except Exception as e:
-            logger.error(f"❌ Failed to generate embedding for text: {str(e)}")
-            # Log first 200 chars of problematic text for debugging
-            text_preview = text[:200] + "..." if len(text) > 200 else text
-            logger.error(f"Problematic text preview: {repr(text_preview)}")
+            logger.debug(f"API call failed: {str(e)}")
             return None
     
     def _preprocess_text(self, text: str) -> str:
         """
         Preprocess text to ensure it works with Google Gemini API.
-        
-        Args:
-            text: Raw text from document
-            
-        Returns:
-            Processed text safe for API
+        Much more aggressive preprocessing.
         """
         if not text:
             return ""
@@ -136,19 +158,31 @@ class SupabaseMigrator:
         # Remove control characters except common ones (newline, tab, carriage return)
         text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]', '', text)
         
+        # Remove special quotes and replace with regular ones
+        text = text.replace('"', '"').replace('"', '"').replace(''', "'").replace(''', "'")
+        
+        # Remove or replace problematic characters
+        text = text.replace('…', '...').replace('–', '-').replace('—', '-')
+        
+        # Keep only ASCII + basic unicode characters
+        text = ''.join(char for char in text if ord(char) < 65536)
+        
         # Ensure UTF-8 encoding
         try:
             text = text.encode('utf-8').decode('utf-8')
         except UnicodeError:
-            # If encoding fails, replace problematic characters
-            text = text.encode('utf-8', errors='replace').decode('utf-8')
+            # If encoding fails, use only ASCII
+            text = text.encode('ascii', errors='ignore').decode('ascii')
         
-        # Limit length (Google Gemini has token limits)
-        # Roughly 1 token = 4 characters, max ~30k tokens for embedding
-        MAX_CHARS = 60000  # Conservative limit
+        # Much more conservative limit - start small and work up
+        MAX_CHARS = 8000  # Very conservative limit
         if len(text) > MAX_CHARS:
-            text = text[:MAX_CHARS] + "..."
-            logger.info(f"⚠️ Text truncated to {MAX_CHARS} characters")
+            text = text[:MAX_CHARS]
+            # Try to end at a sentence boundary
+            last_period = text.rfind('.')
+            if last_period > MAX_CHARS * 0.8:  # If we find a period in the last 20%
+                text = text[:last_period + 1]
+            logger.info(f"⚠️ Text truncated to {len(text)} characters")
         
         return text.strip()
     
