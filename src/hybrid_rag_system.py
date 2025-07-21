@@ -272,17 +272,67 @@ class HybridRAGSystem:
             
             # Search for relevant documents using the appropriate vector store
             relevant_docs = self._search_documents(user_query)
+            used_fallback = False
+            fallback_context = ""
+            
+            # If no results, try broader search terms for technical questions
+            if not relevant_docs and any(term in user_query.lower() for term in 
+                ['development', 'environment', 'setup', 'install', 'configure', 'technical', 'code', 'programming']):
+                logger.info("No results for technical query, trying broader engineering search...")
+                fallback_queries = [
+                    "engineering practices",
+                    "development workflow", 
+                    "technical guidelines",
+                    "security practices"
+                ]
+                
+                for fallback_query in fallback_queries:
+                    relevant_docs = self._search_documents(fallback_query)
+                    if relevant_docs:
+                        used_fallback = True
+                        fallback_context = f"Note: I couldn't find specific information about '{user_query}', so I'm providing related information from GitLab's {fallback_query} documentation."
+                        logger.info(f"Found results with fallback query: {fallback_query}")
+                        break
             
             if not relevant_docs:
+                # Try to provide helpful suggestions based on available topics
+                available_topics = [
+                    "GitLab's core values and culture",
+                    "Remote work practices and policies", 
+                    "Engineering practices and workflows",
+                    "Security guidelines and procedures",
+                    "Performance reviews and career development",
+                    "Hiring processes and practices",
+                    "Diversity, inclusion and belonging initiatives"
+                ]
+                
+                suggestions = "\n".join([f"• {topic}" for topic in available_topics])
+                
                 return {
-                    "answer": "I couldn't find relevant information in the GitLab documentation for your question. Could you try rephrasing your query or asking about a different topic?",
+                    "answer": f"""I couldn't find specific information about development environment setup in the current GitLab documentation sample. 
+
+However, I can help you with these GitLab topics:
+
+{suggestions}
+
+For technical development setup, you might want to ask about:
+• "What are GitLab's engineering practices?"
+• "How does GitLab handle code reviews?"
+• "What security guidelines does GitLab follow?"
+
+Could you try asking about one of these available topics instead?""",
                     "sources": [],
-                    "warning": "No relevant documents found",
+                    "warning": "No relevant documents found - showing available topics",
                     "timestamp": datetime.now().isoformat()
                 }
             
             # Format context and generate response using Gemini
             context = self._format_context(relevant_docs)
+            
+            # Add fallback context if used
+            if used_fallback:
+                context = f"{fallback_context}\n\n{context}"
+            
             response = self.llm.generate_response(user_query, context, conversation_history or [])
             
             # Format sources
@@ -290,13 +340,19 @@ class HybridRAGSystem:
             
             logger.info(f"Query processed successfully, {len(sources)} sources found")
             
-            return {
+            result = {
                 "answer": response,
                 "sources": sources,
                 "timestamp": datetime.now().isoformat(),
                 "num_sources": len(sources),
                 "system": "HuggingFace + Gemini"
             }
+            
+            # Add warning if fallback was used
+            if used_fallback:
+                result["warning"] = "Response based on related content rather than exact match"
+            
+            return result
             
         except Exception as e:
             logger.error(f"Error processing query: {e}")
