@@ -234,6 +234,84 @@ When responding:
             "tokens_used": info["total_tokens_used"]
         }
 
+    def generate_response(self, 
+                         query: str, 
+                         context: str, 
+                         conversation_history: Optional[List[Dict[str, str]]] = None) -> str:
+        """
+        Generate response using Google Gemini (public interface).
+        
+        Args:
+            query: User query
+            context: Retrieved document context
+            conversation_history: Previous conversation turns
+            
+        Returns:
+            str: Generated response
+        """
+        if not self.is_available():
+            return "I apologize, but the Gemini model is not available. Please check your configuration."
+        
+        try:
+            # Build the prompt
+            prompt = self._build_prompt(query, context, conversation_history or [])
+            
+            # Generate response with caching and retry logic
+            context_hash = hash(f"{context[:500]}{str(conversation_history)}")
+            response = self._cached_generate(prompt, context_hash)
+            
+            logger.debug(f"Generated response with Gemini ({len(response)} chars)")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error in generate_response: {e}")
+            return f"I apologize, but I encountered an error while processing your request: {str(e)}"
+    
+    def _build_prompt(self, 
+                      query: str, 
+                      context: str, 
+                      conversation_history: Optional[List[Dict[str, str]]] = None) -> str:
+        """
+        Build the complete prompt for Gemini.
+        
+        Args:
+            query: User query
+            context: Retrieved document context
+            conversation_history: Previous conversation turns
+            
+        Returns:
+            str: Complete prompt
+        """
+        prompt_parts = []
+        
+        # Add conversation history if provided
+        if conversation_history:
+            prompt_parts.append("=== Conversation History ===")
+            for turn in conversation_history[-3:]:  # Keep last 3 turns
+                if isinstance(turn, dict):
+                    if turn.get("user"):
+                        prompt_parts.append(f"User: {turn['user']}")
+                    elif turn.get("role") == "user":
+                        prompt_parts.append(f"User: {turn.get('content', '')}")
+                    elif turn.get("assistant"):
+                        prompt_parts.append(f"Assistant: {turn['assistant']}")
+                    elif turn.get("role") == "assistant":
+                        prompt_parts.append(f"Assistant: {turn.get('content', '')}")
+            prompt_parts.append("")
+        
+        # Add context and current query
+        prompt_parts.extend([
+            "=== GitLab Documentation Context ===",
+            context,
+            "",
+            "=== Current Question ===",
+            f"User: {query}",
+            "",
+            "Please provide a helpful response based on the GitLab documentation provided above. Include relevant source citations where appropriate."
+        ])
+        
+        return "\n".join(prompt_parts)
+
 def create_gemini_llm(api_key: Optional[str] = None, 
                       model_name: str = "gemini-1.5-flash") -> GeminiLLM:
     """
