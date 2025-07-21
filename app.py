@@ -30,10 +30,10 @@ from src.config import config
 
 # Page configuration
 st.set_page_config(
-    page_title="GitLab Handbook Assistant",
+    page_title="GitPulseAI",
     page_icon="🦊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # Custom CSS for better styling
@@ -296,7 +296,8 @@ def main():
     """Main application function."""
     
     # Header
-    st.markdown('<h1 class="main-header">🦊 GitLab Handbook Assistant</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🦊 GitPulseAI</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #666; font-size: 1.2rem; margin-top: -1rem;">GitLab Handbook Assistant</p>', unsafe_allow_html=True)
     
     # Initialize system if not already done
     if not st.session_state.system_initialized:
@@ -308,36 +309,28 @@ def main():
                 st.error(f"❌ Failed to initialize system: {st.session_state.initialization_error}")
                 st.stop()
     
-    # Sidebar
+    # Sidebar (Simplified)
     with st.sidebar:
-        st.header("🔧 System Info")
+        st.header("ℹ️ About")
+        st.markdown("""
+        **GitPulseAI** helps you explore GitLab's handbook and policies using AI-powered search.
         
-        # System status
+        Ask questions about:
+        - GitLab's values and culture
+        - Remote work practices  
+        - Engineering processes
+        - Company policies
+        """)
+        
+        # Simple status indicator
         if st.session_state.system_initialized:
-            st.success("✅ System Ready")
-            st.write("**Stack:** Hugging Face + Gemini")
-            st.write("**Cost:** 100% Free*")
-            st.write("*Gemini has generous free tier")
+            st.success("🟢 System Ready")
         else:
-            st.error("❌ System Not Ready")
-            if st.session_state.initialization_error:
-                st.error(st.session_state.initialization_error)
+            st.error("🔴 System Not Ready")
         
-        # Display system stats
-        if st.session_state.system_initialized:
-            display_system_stats()
-        
-        # Configuration info
-        st.header("⚙️ Configuration")
-        
-        # API key status
-        if config.GEMINI_API_KEY:
-            st.success("✅ Gemini API key configured")
-        else:
-            st.error("❌ Gemini API key missing")
-            st.write("Set GEMINI_API_KEY in your environment")
-        
-        # Reinitialize button
+        st.markdown("---")
+        st.markdown("💡 **Powered by:**")
+        st.markdown("🤗 Hugging Face + 🤖 Google Gemini")
         if st.button("🔄 Reinitialize System"):
             st.session_state.system_initialized = False
             st.session_state.rag_system = None
@@ -376,6 +369,10 @@ def main():
     # Chat input
     user_input = st.chat_input("Ask about GitLab's handbook, culture, processes, or policies...")
     
+    # Check if we need to process a user message (from input or example questions)
+    should_process = False
+    query_to_process = None
+    
     if user_input:
         # Add user message to history
         st.session_state.conversation_history.append({
@@ -383,26 +380,32 @@ def main():
             "content": user_input,
             "timestamp": datetime.now().isoformat()
         })
-        
-        # Show user message
-        st.markdown(f'<div class="chat-message user-message">👤 **You:** {user_input}</div>', unsafe_allow_html=True)
-        
+        should_process = True
+        query_to_process = user_input
+    
+    # Check if last message was from user without a response
+    elif (st.session_state.conversation_history and 
+          st.session_state.conversation_history[-1]["role"] == "user"):
+        # Check if there's no assistant response after this user message
+        should_process = True
+        query_to_process = st.session_state.conversation_history[-1]["content"]
+    
+    if should_process and query_to_process:
         # Get response
         with st.spinner("Thinking..."):
-            response = get_response(user_input)
+            response = get_response(query_to_process)
         
         # Display response
         answer = response.get("answer", "I apologize, but I couldn't generate a response.")
-        st.markdown(f'<div class="chat-message assistant-message">🤖 **Assistant:** {answer}</div>', unsafe_allow_html=True)
         
         # Add assistant response to history
         st.session_state.conversation_history.append({
-            "role": "assistant",
+            "role": "assistant", 
             "content": answer,
             "timestamp": datetime.now().isoformat()
         })
         
-        # Display sources
+        # Display sources if available
         sources = response.get("sources", [])
         if sources:
             display_sources(sources)
@@ -461,7 +464,7 @@ def main():
     # Footer
     st.markdown("---")
     st.markdown(
-        "🦊 **GitLab Handbook Assistant** • "
+        "🦊 **GitPulseAI** • "
         "Powered by Hugging Face Embeddings + Google Gemini • "
         "100% Free Solution"
     )
