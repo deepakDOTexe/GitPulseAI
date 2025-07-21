@@ -62,6 +62,13 @@ class SupabaseMigrator:
         """
         try:
             import requests
+            import re
+            
+            # Preprocess text to handle real document content
+            processed_text = self._preprocess_text(text)
+            if not processed_text or len(processed_text.strip()) == 0:
+                logger.warning("⚠️ Empty text after preprocessing, skipping")
+                return None
             
             # Use Google Gemini REST API for embeddings (basic format from user's curl example)
             url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent"
@@ -75,7 +82,7 @@ class SupabaseMigrator:
             data = {
                 "model": "models/gemini-embedding-001",
                 "content": {
-                    "parts": [{"text": text}]
+                    "parts": [{"text": processed_text}]
                 }
             }
             
@@ -98,7 +105,52 @@ class SupabaseMigrator:
         
         except Exception as e:
             logger.error(f"❌ Failed to generate embedding for text: {str(e)}")
+            # Log first 200 chars of problematic text for debugging
+            text_preview = text[:200] + "..." if len(text) > 200 else text
+            logger.error(f"Problematic text preview: {repr(text_preview)}")
             return None
+    
+    def _preprocess_text(self, text: str) -> str:
+        """
+        Preprocess text to ensure it works with Google Gemini API.
+        
+        Args:
+            text: Raw text from document
+            
+        Returns:
+            Processed text safe for API
+        """
+        if not text:
+            return ""
+        
+        # Convert to string if not already
+        text = str(text)
+        
+        # Remove HTML tags if any
+        import re
+        text = re.sub(r'<[^>]+>', '', text)
+        
+        # Replace multiple whitespace with single space
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Remove control characters except common ones (newline, tab, carriage return)
+        text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]', '', text)
+        
+        # Ensure UTF-8 encoding
+        try:
+            text = text.encode('utf-8').decode('utf-8')
+        except UnicodeError:
+            # If encoding fails, replace problematic characters
+            text = text.encode('utf-8', errors='replace').decode('utf-8')
+        
+        # Limit length (Google Gemini has token limits)
+        # Roughly 1 token = 4 characters, max ~30k tokens for embedding
+        MAX_CHARS = 60000  # Conservative limit
+        if len(text) > MAX_CHARS:
+            text = text[:MAX_CHARS] + "..."
+            logger.info(f"⚠️ Text truncated to {MAX_CHARS} characters")
+        
+        return text.strip()
     
     def test_connection(self) -> bool:
         """Test both Supabase and Google Gemini API connections."""
