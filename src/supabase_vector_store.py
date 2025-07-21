@@ -85,24 +85,27 @@ class SupabaseVectorStore:
                 "x-goog-api-key": api_key
             }
             
+            # Official format from Google docs
             data = {
-                "model": "models/gemini-embedding-001",
-                "content": {
-                    "parts": [{"text": text}]
-                },
-                "taskType": "RETRIEVAL_QUERY",
-                "outputDimensionality": 1536  # Match existing Supabase schema
+                "contents": [
+                    {"parts": [{"text": text}]}
+                ],
+                "embedding_config": {
+                    "output_dimensionality": 1536
+                }
             }
             
             response = requests.post(url, headers=headers, json=data)
             response.raise_for_status()
             
             result = response.json()
-            if 'embedding' in result and 'values' in result['embedding']:
-                return result['embedding']['values']
-            else:
-                print("❌ Unexpected response format from Google Gemini API")
-                return None
+            if 'embeddings' in result and len(result['embeddings']) > 0:
+                embedding = result['embeddings'][0]
+                if 'values' in embedding:
+                    return embedding['values']
+            
+            print("❌ Unexpected response format from Google Gemini API")
+            return None
         
         except Exception as e:
             print(f"❌ Failed to generate embedding: {str(e)}")

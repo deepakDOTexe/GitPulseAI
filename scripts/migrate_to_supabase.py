@@ -71,13 +71,14 @@ class SupabaseMigrator:
                 "x-goog-api-key": self.gemini_api_key
             }
             
+            # Official format from Google docs
             data = {
-                "model": "models/gemini-embedding-001",
-                "content": {
-                    "parts": [{"text": text}]
-                },
-                "taskType": "RETRIEVAL_DOCUMENT",
-                "outputDimensionality": 1536  # Match existing Supabase schema
+                "contents": [
+                    {"parts": [{"text": text}]}
+                ],
+                "embedding_config": {
+                    "output_dimensionality": 1536
+                }
             }
             
             response = requests.post(url, headers=headers, json=data)
@@ -87,11 +88,13 @@ class SupabaseMigrator:
             time.sleep(self.rate_limit_delay)
             
             result = response.json()
-            if 'embedding' in result and 'values' in result['embedding']:
-                return result['embedding']['values']
-            else:
-                logger.error("❌ Unexpected response format from Google Gemini API")
-                return None
+            if 'embeddings' in result and len(result['embeddings']) > 0:
+                embedding = result['embeddings'][0]
+                if 'values' in embedding:
+                    return embedding['values']
+            
+            logger.error("❌ Unexpected response format from Google Gemini API")
+            return None
         
         except Exception as e:
             logger.error(f"❌ Failed to generate embedding for text: {str(e)}")
