@@ -64,18 +64,19 @@ class SupabaseMigrator:
             import requests
             
             # Use Google Gemini REST API for embeddings
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={self.gemini_api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key={self.gemini_api_key}"
             
             headers = {
                 "Content-Type": "application/json"
             }
             
             data = {
-                "model": "models/text-embedding-004",
+                "model": "models/gemini-embedding-001",
                 "content": {
                     "parts": [{"text": text}]
                 },
-                "taskType": "RETRIEVAL_DOCUMENT"
+                "taskType": "RETRIEVAL_DOCUMENT",
+                "outputDimensionality": 1536  # Match existing Supabase schema
             }
             
             response = requests.post(url, headers=headers, json=data)
