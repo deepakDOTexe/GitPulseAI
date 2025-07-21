@@ -294,8 +294,11 @@ class SupabaseMigrator:
                 batch_data.append(doc_data)
             
             try:
-                # Upload batch to Supabase
-                result = self.supabase.table('gitlab_documents').upsert(batch_data).execute()
+                # Upload batch to Supabase with proper upsert (on_conflict=ignore or update)
+                result = self.supabase.table('gitlab_documents').upsert(
+                    batch_data, 
+                    on_conflict='document_id'  # Specify the conflict resolution
+                ).execute()
                 batch_success = len(result.data) if result.data else 0
                 successful_uploads += batch_success
                 
@@ -303,10 +306,35 @@ class SupabaseMigrator:
                 
             except Exception as e:
                 logger.error(f"❌ Batch upload failed: {e}")
+                
+                # Try individual uploads as fallback
+                logger.info("🔄 Trying individual uploads as fallback...")
+                for doc_data in batch_data:
+                    try:
+                        result = self.supabase.table('gitlab_documents').upsert(
+                            doc_data, 
+                            on_conflict='document_id'
+                        ).execute()
+                        if result.data:
+                            successful_uploads += 1
+                            logger.debug(f"✅ Individual upload: {doc_data['document_id']}")
+                    except Exception as e2:
+                        logger.warning(f"⚠️ Individual upload failed for {doc_data['document_id']}: {e2}")
                 continue
         
         logger.info(f"🎉 Upload completed: {successful_uploads}/{total_documents} documents uploaded successfully")
         return successful_uploads
+    
+    def clear_all_documents(self) -> bool:
+        """Clear all existing documents from the database."""
+        try:
+            logger.info("🗑️ Clearing all existing documents...")
+            result = self.supabase.table('gitlab_documents').delete().neq('document_id', 'impossible_nonexistent_id').execute()
+            logger.info("✅ All documents cleared successfully")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to clear documents: {e}")
+            return False
 
     def get_stats(self) -> Dict[str, Any]:
         """Get statistics about uploaded documents."""
@@ -396,6 +424,25 @@ def main():
         logger.error("❌ Connection test failed. Please check your credentials.")
         return
     
+    # Check for existing documents
+    try:
+        stats = migrator.get_stats()
+        existing_docs = stats.get("total_documents", 0)
+        if existing_docs > 0:
+            logger.info(f"📋 Found {existing_docs} existing documents in database")
+            
+            clear_choice = input("Clear existing documents first? (y/N): ").lower().strip()
+            if clear_choice == 'y':
+                if migrator.clear_all_documents():
+                    logger.info("🗑️ Existing documents cleared")
+                else:
+                    logger.error("❌ Failed to clear existing documents")
+                    return
+            else:
+                logger.info("📝 Will update/skip duplicates using upsert")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not check existing documents: {e}")
+    
     # Ask user which data file to use
     data_files = [
         "data/gitlab_two_pages.json",
@@ -445,6 +492,12 @@ def main():
         )
         
         logger.info(f"🎉 Migration completed! Uploaded {uploaded_count} documents to Supabase")
+        
+        # Show final stats
+        final_stats = migrator.get_stats()
+        logger.info(f"📊 Final database stats:")
+        logger.info(f"   Total documents: {final_stats.get('total_documents', 0)}")
+        logger.info(f"   With embeddings: {final_stats.get('documents_with_embeddings', 0)}")
         
         if generate_embeddings and uploaded_count > 0:
             logger.info("🎯 Creating vector similarity index...")
