@@ -77,7 +77,7 @@ class SupabaseVectorStore:
             List of embedding values, or None if failed
         """
         try:
-            # Use Google Gemini REST API for embeddings (official format)
+            # Use Google Gemini REST API for embeddings (basic format)
             url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent"
             
             headers = {
@@ -85,13 +85,11 @@ class SupabaseVectorStore:
                 "x-goog-api-key": api_key
             }
             
-            # Official format from Google docs
+            # Basic format that matches user's curl example
             data = {
-                "contents": [
-                    {"parts": [{"text": text}]}
-                ],
-                "embedding_config": {
-                    "output_dimensionality": 1536
+                "model": "models/gemini-embedding-001",
+                "content": {
+                    "parts": [{"text": text}]
                 }
             }
             
@@ -99,12 +97,14 @@ class SupabaseVectorStore:
             response.raise_for_status()
             
             result = response.json()
-            if 'embeddings' in result and len(result['embeddings']) > 0:
-                embedding = result['embeddings'][0]
-                if 'values' in embedding:
-                    return embedding['values']
+            # The response structure for basic format
+            if 'embedding' in result and 'values' in result['embedding']:
+                embedding_values = result['embedding']['values']
+                # Truncate to 1536 dimensions if needed (Gemini default is 3072)
+                return embedding_values[:1536]
             
             print("❌ Unexpected response format from Google Gemini API")
+            print(f"Response: {result}")
             return None
         
         except Exception as e:

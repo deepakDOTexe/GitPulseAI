@@ -63,7 +63,7 @@ class SupabaseMigrator:
         try:
             import requests
             
-            # Use Google Gemini REST API for embeddings (official format)
+            # Use Google Gemini REST API for embeddings (basic format from user's curl example)
             url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent"
             
             headers = {
@@ -71,13 +71,11 @@ class SupabaseMigrator:
                 "x-goog-api-key": self.gemini_api_key
             }
             
-            # Official format from Google docs
+            # Basic format that matches user's curl example
             data = {
-                "contents": [
-                    {"parts": [{"text": text}]}
-                ],
-                "embedding_config": {
-                    "output_dimensionality": 1536
+                "model": "models/gemini-embedding-001",
+                "content": {
+                    "parts": [{"text": text}]
                 }
             }
             
@@ -88,12 +86,14 @@ class SupabaseMigrator:
             time.sleep(self.rate_limit_delay)
             
             result = response.json()
-            if 'embeddings' in result and len(result['embeddings']) > 0:
-                embedding = result['embeddings'][0]
-                if 'values' in embedding:
-                    return embedding['values']
+            # The response structure for basic format
+            if 'embedding' in result and 'values' in result['embedding']:
+                embedding_values = result['embedding']['values']
+                # Truncate to 1536 dimensions if needed (Gemini default is 3072)
+                return embedding_values[:1536]
             
             logger.error("❌ Unexpected response format from Google Gemini API")
+            logger.error(f"Response: {result}")
             return None
         
         except Exception as e:
@@ -109,8 +109,10 @@ class SupabaseMigrator:
             doc_count = len(result.data) if result.data else 0
             logger.info(f"✅ Supabase connected! Found {doc_count} existing documents")
             
-            # Test Google Gemini embedding API
+            # Test Google Gemini embedding API with more debugging
             logger.info("🔍 Testing Google Gemini embedding API...")
+            logger.info(f"Using API key ending in: ...{self.gemini_api_key[-10:] if self.gemini_api_key else 'None'}")
+            
             test_embedding = self.generate_embedding("Hello, world!")
             
             if test_embedding and len(test_embedding) > 0:
