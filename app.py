@@ -23,71 +23,152 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better visibility and design
+# Clean, minimal CSS following a design system
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 3rem;
-        font-weight: bold;
-        color: #1f77b4;
+    /* Hide Streamlit branding and menu */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Clean typography */
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1a1a1a;
         text-align: center;
         margin-bottom: 0.5rem;
+        letter-spacing: -0.02em;
     }
-    .sub-header {
-        font-size: 1.2rem;
-        color: #666;
+    
+    .sub-title {
+        font-size: 1.1rem;
+        color: #6b7280;
         text-align: center;
         margin-bottom: 2rem;
+        font-weight: 400;
     }
-    .chat-message {
-        padding: 1rem;
+    
+    /* Status indicator */
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        background: #ecfdf5;
+        color: #059669;
         border-radius: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-bottom: 1.5rem;
+        border: 1px solid #d1fae5;
+    }
+    
+    /* Chat containers */
+    .chat-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+    
+    .message {
         margin: 1rem 0;
-    }
-    .user-message {
-        background-color: #e3f2fd;
-        border-left: 4px solid #1976d2;
-    }
-    .assistant-message {
-        background-color: #f3e5f5;
-        border-left: 4px solid #7b1fa2;
-    }
-    .example-question {
-        background-color: #f5f5f5;
-        padding: 0.8rem;
-        border-radius: 0.3rem;
-        cursor: pointer;
-        margin: 0.3rem 0;
-        border: 1px solid #ddd;
-        color: #333 !important;
-    }
-    .example-question:hover {
-        background-color: #e0e0e0;
-        border-color: #1976d2;
-    }
-    .footer {
-        margin-top: 2rem;
         padding: 1rem;
-        text-align: center;
-        color: #666;
-        font-size: 0.9rem;
-        border-top: 1px solid #eee;
+        border-radius: 0.75rem;
+        line-height: 1.6;
     }
-    .system-status {
+    
+    .user-message {
+        background: #f3f4f6;
+        border-left: 3px solid #3b82f6;
+        margin-left: 2rem;
+    }
+    
+    .assistant-message {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-left: 3px solid #10b981;
+    }
+    
+    .message-role {
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: #374151;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Input styling */
+    .stTextInput input {
+        border-radius: 0.5rem !important;
+        border: 1px solid #d1d5db !important;
+        padding: 0.75rem !important;
+        font-size: 1rem !important;
+    }
+    
+    .stTextInput input:focus {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+    }
+    
+    /* Button styling */
+    .stButton button {
+        background: #3b82f6 !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 0.5rem !important;
+        padding: 0.75rem 1.5rem !important;
+        font-weight: 500 !important;
+        font-size: 0.875rem !important;
+    }
+    
+    .stButton button:hover {
+        background: #2563eb !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4) !important;
+    }
+    
+    /* Sidebar styling */
+    .sidebar-content {
+        padding: 1rem;
+    }
+    
+    .example-btn {
+        width: 100%;
+        margin: 0.25rem 0;
         padding: 0.5rem;
-        border-radius: 0.3rem;
-        margin: 0.5rem 0;
-        font-size: 0.9rem;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.375rem;
+        color: #374151;
+        font-size: 0.875rem;
+        text-align: left;
+        cursor: pointer;
     }
-    .status-cloud {
-        background-color: #e8f5e8;
-        color: #2e7d2e;
-        border-left: 4px solid #4caf50;
+    
+    .example-btn:hover {
+        background: #f3f4f6;
+        border-color: #d1d5db;
     }
-    .status-local {
-        background-color: #fff3e0;
-        color: #e65100;
-        border-left: 4px solid #ff9800;
+    
+    /* Welcome message */
+    .welcome-message {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 1rem;
+        margin: 1rem 0;
+        text-align: center;
+    }
+    
+    .welcome-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+    
+    .welcome-text {
+        font-size: 1rem;
+        opacity: 0.9;
+        line-height: 1.6;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -107,8 +188,8 @@ def initialize_rag_system():
             supabase_key = os.getenv("SUPABASE_KEY") 
             gemini_api_key = os.getenv("GEMINI_API_KEY")
             
-            if not supabase_url or not supabase_key:
-                st.error("❌ Supabase credentials not found in environment variables")
+            if not supabase_url or not supabase_key or not gemini_api_key:
+                st.error("❌ Missing required environment variables: SUPABASE_URL, SUPABASE_KEY, or GEMINI_API_KEY")
                 return None
             
             return create_supabase_rag_system(
@@ -126,9 +207,9 @@ def initialize_rag_system():
         return None
 
 def main():
-    # Main header
-    st.markdown('<div class="main-header">GitPulseAI</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">GitLab Handbook Assistant</div>', unsafe_allow_html=True)
+    # Header
+    st.markdown('<div class="main-title">GitPulseAI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-title">GitLab Handbook Assistant</div>', unsafe_allow_html=True)
 
     # Initialize RAG system
     rag_system = initialize_rag_system()
@@ -137,23 +218,14 @@ def main():
         st.error("Failed to initialize the RAG system. Please check your configuration.")
         st.stop()
 
-    # System status indicator
-    if USE_SUPABASE:
-        st.markdown('''
-        <div class="system-status status-cloud">
-            🌩️ <strong>Cloud Mode:</strong> Using Supabase + Google Gemini embeddings
-        </div>
-        ''', unsafe_allow_html=True)
-    else:
-        st.markdown('''
-        <div class="system-status status-local">
-            💻 <strong>Local Mode:</strong> Using local embeddings + Google Gemini LLM
-        </div>
-        ''', unsafe_allow_html=True)
+    # Status indicator
+    status_text = "🌩️ Cloud Mode: Supabase + Google Gemini" if USE_SUPABASE else "💻 Local Mode: Hybrid embeddings + Google Gemini"
+    st.markdown(f'<div class="status-badge">{status_text}</div>', unsafe_allow_html=True)
 
     # Sidebar with example questions
     with st.sidebar:
-        st.header("📋 Example Questions")
+        st.markdown('<div class="sidebar-content">', unsafe_allow_html=True)
+        st.markdown("### 💡 Example Questions")
         
         example_questions = [
             "What are GitLab's core values?",
@@ -165,80 +237,84 @@ def main():
         ]
         
         for i, question in enumerate(example_questions):
-            if st.button(f"💡", key=f"ex_{i}", help=question):
-                st.session_state.user_input = question
+            if st.button(question, key=f"ex_{i}", help="Click to ask this question"):
+                st.session_state.selected_question = question
                 st.rerun()
         
-        # Display each question text below buttons
-        for question in example_questions:
-            st.markdown(f'<div class="example-question">{question}</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # Initialize chat history
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
-    # Initialize user input
-    if "user_input" not in st.session_state:
-        st.session_state.user_input = ""
+    # Initialize selected question
+    if "selected_question" not in st.session_state:
+        st.session_state.selected_question = ""
 
-    # Welcome message
+    # Welcome message (only show when no chat history)
     if not st.session_state.chat_history:
-        welcome_msg = f"""
-        👋 **Welcome to GitPulseAI!** 
-        
-        I'm here to help you explore GitLab's handbook and policies. You can ask me about:
-        - Company values and culture
-        - Remote work practices  
-        - Policies and procedures
-        - Diversity & inclusion initiatives
-        - And much more!
-        
-        **System Status:** {'🌩️ Cloud-powered' if USE_SUPABASE else '💻 Local mode'} with Google Gemini
-        
-        Try asking a question or click one of the example questions in the sidebar!
-        """
-        
-        st.session_state.chat_history.append({
-            "role": "assistant",
-            "content": welcome_msg
-        })
+        st.markdown('''
+        <div class="welcome-message">
+            <div class="welcome-title">👋 Welcome to GitPulseAI!</div>
+            <div class="welcome-text">
+                I'm here to help you explore GitLab's handbook and policies.<br><br>
+                <strong>Ask me about:</strong> Company values • Remote work • Policies • Culture • Best practices<br><br>
+                <em>Powered by Google Gemini and Supabase</em>
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
 
+    # Chat container
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    
     # Display chat history
     for message in st.session_state.chat_history:
         if message["role"] == "user":
             st.markdown(f'''
-            <div class="chat-message user-message">
-                <strong>🧑‍💻</strong> {message["content"]}
+            <div class="message user-message">
+                <div class="message-role">👤 You</div>
+                {message["content"]}
             </div>
             ''', unsafe_allow_html=True)
         else:
             st.markdown(f'''
-            <div class="chat-message assistant-message">
-                <strong>🤖</strong> {message["content"]}
+            <div class="message assistant-message">
+                <div class="message-role">🤖 GitPulseAI</div>
+                {message["content"]}
             </div>
             ''', unsafe_allow_html=True)
-
-    # User input
-    user_question = st.text_input(
-        "Ask about GitLab's handbook:",
-        value=st.session_state.user_input,
-        placeholder="e.g., What are GitLab's core values?",
-        key="question_input"
-    )
     
-    # Clear the session state input after displaying
-    if st.session_state.user_input:
-        st.session_state.user_input = ""
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    col1, col2 = st.columns([1, 4])
+    # Input section
+    st.markdown("---")
+    
+    # Handle selected question from sidebar
+    user_input = st.session_state.selected_question if st.session_state.selected_question else ""
+    if st.session_state.selected_question:
+        st.session_state.selected_question = ""  # Clear it
+    
+    # Text input
+    col1, col2 = st.columns([4, 1])
     with col1:
-        ask_button = st.button("🔍 Ask", type="primary")
+        user_question = st.text_input(
+            "Ask about GitLab's handbook:",
+            value=user_input,
+            placeholder="e.g., What are GitLab's core values?",
+            key="question_input"
+        )
+    
+    with col2:
+        ask_button = st.button("Ask", type="primary", use_container_width=True)
 
-    if ask_button and user_question.strip():
+    # Process question
+    if (ask_button and user_question.strip()) or user_input.strip():
+        question_to_process = user_question.strip() or user_input.strip()
+        
         # Add user message to chat
         st.session_state.chat_history.append({
             "role": "user", 
-            "content": user_question
+            "content": question_to_process
         })
         
         # Show thinking indicator
@@ -250,7 +326,7 @@ def main():
                     return
                 
                 # Get response from RAG system
-                response_data = rag_system.query(user_question, st.session_state.chat_history[:-1])
+                response_data = rag_system.query(question_to_process, st.session_state.chat_history[:-1])
                 
                 if response_data.get("status") == "success":
                     response = response_data.get("response", "I couldn't generate a response.")
@@ -273,15 +349,6 @@ def main():
                     "content": error_msg
                 })
                 st.rerun()
-
-    # Footer
-    st.markdown(f'''
-    <div class="footer">
-        <strong>GitPulseAI</strong> - GitLab Handbook Assistant<br>
-        Powered by Google Gemini {'+ Supabase Vector Database' if USE_SUPABASE else '+ Local Embeddings'}<br>
-        <em>Built for exploring GitLab's culture and practices</em>
-    </div>
-    ''', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main() 

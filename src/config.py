@@ -71,9 +71,14 @@ class Config:
         Returns:
             bool: True if configuration is valid, False otherwise
         """
-        required_fields = [
-            "OPENAI_API_KEY"
-        ]
+        # No longer requiring OpenAI API key since we use Google Gemini
+        required_fields = []
+        
+        # Check for Gemini API key if it's being used
+        if not cls.GEMINI_API_KEY:
+            print("⚠️  Google Gemini API key not configured")
+            print("💡 Set GEMINI_API_KEY in your .env file for full functionality")
+            print("🔗 Get your free key from: https://makersuite.google.com/app/apikey")
         
         missing_fields = []
         for field in required_fields:
