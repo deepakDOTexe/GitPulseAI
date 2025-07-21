@@ -15,4 +15,8 @@ google-generativeai>=0.3.0
 langchain-text-splitters>=0.0.1
 
 # HTTP requests
-requests>=2.31.0 
+requests>=2.31.0
+
+# Web scraping (for GitLab data collection)
+beautifulsoup4>=4.12.0
+lxml>=4.9.0 
