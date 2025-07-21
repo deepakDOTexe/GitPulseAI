@@ -2,7 +2,7 @@
 Supabase RAG System for GitPulseAI
 
 Complete RAG system using Supabase (PostgreSQL + pgvector) for document storage
-and Google Gemini for LLM generation.
+and Google Gemini for both LLM generation and embeddings.
 
 This is the main integration point for Streamlit Cloud deployment.
 """
@@ -12,7 +12,6 @@ import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
-from src.config import config
 from src.supabase_vector_store import SupabaseVectorStore, create_supabase_vector_store
 from src.gemini_llm import GeminiLLM
 
@@ -20,10 +19,11 @@ logger = logging.getLogger(__name__)
 
 class SupabaseRAGSystem:
     """
-    Complete RAG system using Supabase + Gemini.
+    Complete RAG system using Supabase + Google Gemini.
     
     Features:
     - Supabase PostgreSQL + pgvector for document storage
+    - Google Gemini embeddings for semantic search
     - Google Gemini LLM for response generation
     - Hybrid search (vector + full-text)
     - Streamlit Cloud optimized
@@ -32,8 +32,7 @@ class SupabaseRAGSystem:
     def __init__(self, 
                  supabase_url: str,
                  supabase_key: str,
-                 gemini_api_key: Optional[str] = None,
-                 openai_api_key: Optional[str] = None,
+                 gemini_api_key: str,
                  table_name: str = "gitlab_documents",
                  gemini_model: str = "gemini-1.5-flash",
                  similarity_threshold: float = 0.3,
@@ -44,8 +43,7 @@ class SupabaseRAGSystem:
         Args:
             supabase_url: Supabase project URL
             supabase_key: Supabase anon/service role key
-            gemini_api_key: Google Gemini API key
-            openai_api_key: OpenAI API key (optional, for embeddings)
+            gemini_api_key: Google Gemini API key (for both LLM and embeddings)
             table_name: Database table name
             gemini_model: Gemini model name
             similarity_threshold: Minimum similarity for search results
@@ -53,8 +51,7 @@ class SupabaseRAGSystem:
         """
         self.supabase_url = supabase_url
         self.supabase_key = supabase_key
-        self.gemini_api_key = gemini_api_key or config.GEMINI_API_KEY
-        self.openai_api_key = openai_api_key
+        self.gemini_api_key = gemini_api_key
         self.table_name = table_name
         self.similarity_threshold = similarity_threshold
         self.max_results = max_results
@@ -67,7 +64,7 @@ class SupabaseRAGSystem:
         self.is_initialized = False
         self.initialization_error = None
         
-        logger.info("Initialized SupabaseRAGSystem")
+        logger.info("Initialized SupabaseRAGSystem with Google Gemini")
     
     def initialize(self) -> bool:
         """
@@ -95,11 +92,15 @@ class SupabaseRAGSystem:
                 max_results=self.max_results
             )
             
-            if not self.vector_store or not self.vector_store.is_available():
+            if not self.vector_store:
                 raise Exception("Failed to initialize Supabase vector store")
             
-            # Log system statistics
-            self._log_system_stats()
+            # Test basic connectivity
+            try:
+                stats = self.vector_store.get_stats()
+                logger.info(f"Connected to Supabase with {stats.get('total_documents', 0)} documents")
+            except Exception as e:
+                logger.warning(f"Could not get stats but vector store created: {e}")
             
             self.is_initialized = True
             self.initialization_error = None
@@ -114,32 +115,17 @@ class SupabaseRAGSystem:
             self.is_initialized = False
             return False
     
-    def _log_system_stats(self):
-        """Log system statistics after initialization."""
-        if not self.vector_store:
-            return
-        
-        vector_stats = self.vector_store.get_stats()
-        llm_info = self.llm.get_model_info()
-        
-        logger.info("Supabase RAG system stats:")
-        logger.info(f"  - Documents: {vector_stats.get('total_documents', 0)}")
-        logger.info(f"  - Documents with embeddings: {vector_stats.get('documents_with_embeddings', 0)}")
-        logger.info(f"  - Embedding model: {vector_stats.get('embedding_model', 'unknown')}")
-        logger.info(f"  - LLM: {llm_info.get('model_name', 'unknown')}")
-        logger.info(f"  - Database: Supabase PostgreSQL + pgvector")
-    
     def _search_documents(self, query: str) -> List[Dict[str, Any]]:
-        """Search for relevant documents using Supabase."""
+        """Search for relevant documents using Supabase with Google Gemini embeddings."""
         if not self.vector_store:
             logger.error("Vector store not initialized")
             return []
         
         try:
-            # Try vector search first if OpenAI key available, otherwise use full-text search
+            # Use Google Gemini embeddings for search
             results = self.vector_store.search(
                 query=query, 
-                openai_api_key=self.openai_api_key,
+                gemini_api_key=self.gemini_api_key,  # Use Gemini instead of OpenAI
                 max_results=self.max_results
             )
             
@@ -180,14 +166,15 @@ class SupabaseRAGSystem:
             conversation_history: Previous conversation context
             
         Returns:
-            Dict containing answer, sources, and metadata
+            Dict containing response, sources, and metadata
         """
         if not self.is_initialized:
             if not self.initialize():
                 return {
-                    "answer": "I'm sorry, but I'm not properly initialized. Please check the system configuration.",
+                    "status": "error",
+                    "message": f"System not initialized: {self.initialization_error}",
+                    "response": "I'm sorry, but I'm not properly initialized. Please check the system configuration.",
                     "sources": [],
-                    "error": self.initialization_error,
                     "timestamp": datetime.now().isoformat()
                 }
         
@@ -211,7 +198,8 @@ class SupabaseRAGSystem:
                 suggestions = "\n".join([f"• {topic}" for topic in available_topics])
                 
                 return {
-                    "answer": f"""I couldn't find specific information about your question in the current GitLab documentation. 
+                    "status": "success",
+                    "response": f"""I couldn't find specific information about your question in the current GitLab documentation. 
 
 However, I can help you with these GitLab topics:
 
@@ -221,14 +209,14 @@ Could you try asking about one of these available topics instead? Or rephrase yo
                     "sources": [],
                     "warning": "No relevant documents found - showing available topics",
                     "timestamp": datetime.now().isoformat(),
-                    "system": "Supabase + Gemini"
+                    "system": "Supabase + Google Gemini"
                 }
             
             # Format context for LLM
             context = self._format_context(relevant_docs)
             
             # Generate response using Gemini
-            response = self.llm.generate_response(user_query, context, conversation_history or [])
+            llm_response = self.llm.generate_response(user_query, context, conversation_history or [])
             
             # Extract source information
             sources = []
@@ -242,11 +230,12 @@ Could you try asking about one of these available topics instead? Or rephrase yo
                 sources.append(source)
             
             return {
-                "answer": response,
+                "status": "success",
+                "response": llm_response,
                 "sources": sources,
                 "timestamp": datetime.now().isoformat(),
                 "num_sources": len(sources),
-                "system": "Supabase + Gemini"
+                "system": "Supabase + Google Gemini"
             }
             
         except Exception as e:
@@ -254,9 +243,10 @@ Could you try asking about one of these available topics instead? Or rephrase yo
             logger.error(error_msg)
             
             return {
-                "answer": "I'm sorry, I encountered an error while processing your question. Please try again or rephrase your question.",
+                "status": "error",
+                "message": error_msg,
+                "response": "I'm sorry, I encountered an error while processing your question. Please try again or rephrase your question.",
                 "sources": [],
-                "error": error_msg,
                 "timestamp": datetime.now().isoformat()
             }
     
@@ -280,21 +270,27 @@ Could you try asking about one of these available topics instead? Or rephrase yo
         })
         
         # Check Supabase vector store
-        vector_available = self.vector_store and self.vector_store.is_available()
-        checks.append({
-            "name": "Supabase Vector Store",
-            "status": "passed" if vector_available else "failed",
-            "message": "Connected" if vector_available else "Not connected"
-        })
-        
-        # Check document count
+        vector_available = self.vector_store is not None
         if vector_available and self.vector_store:
-            stats = self.vector_store.get_stats()
-            doc_count = stats.get('total_documents', 0)
+            try:
+                stats = self.vector_store.get_stats()
+                doc_count = stats.get('total_documents', 0)
+                checks.append({
+                    "name": "Supabase Vector Store",
+                    "status": "passed",
+                    "message": f"Connected with {doc_count} documents"
+                })
+            except Exception as e:
+                checks.append({
+                    "name": "Supabase Vector Store", 
+                    "status": "failed",
+                    "message": f"Connection error: {e}"
+                })
+        else:
             checks.append({
-                "name": "Document Collection",
-                "status": "passed" if doc_count > 0 else "failed",
-                "message": f"{doc_count} documents available" if doc_count > 0 else "No documents found"
+                "name": "Supabase Vector Store",
+                "status": "failed",
+                "message": "Not initialized"
             })
         
         # Overall status
@@ -312,34 +308,29 @@ Could you try asking about one of these available topics instead? Or rephrase yo
             "system_type": "Supabase RAG",
             "initialized": self.is_initialized,
             "llm_model": self.llm.get_model_info().get('model_name', 'unknown'),
-            "deployment_mode": "Supabase PostgreSQL + pgvector"
+            "deployment_mode": "Supabase PostgreSQL + pgvector",
+            "embedding_provider": "Google Gemini"
         }
         
         if self.vector_store:
-            vector_stats = self.vector_store.get_stats()
-            info.update({
-                "documents": vector_stats.get('total_documents', 0),
-                "documents_with_embeddings": vector_stats.get('documents_with_embeddings', 0),
-                "embedding_model": vector_stats.get('embedding_model', 'unknown'),
-                "table_name": self.table_name
-            })
+            try:
+                vector_stats = self.vector_store.get_stats()
+                info.update({
+                    "documents": vector_stats.get('total_documents', 0),
+                    "documents_with_embeddings": vector_stats.get('documents_with_embeddings', 0),
+                    "table_name": self.table_name
+                })
+            except Exception as e:
+                info["stats_error"] = str(e)
         
         return info
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """Get comprehensive system statistics."""
-        if not self.vector_store:
-            return {"error": "Vector store not initialized"}
-        
-        return self.vector_store.get_stats()
 
 
 # Factory function for easy integration with Streamlit
 @st.cache_resource
 def create_supabase_rag_system(supabase_url: str,
                              supabase_key: str,
-                             gemini_api_key: Optional[str] = None,
-                             openai_api_key: Optional[str] = None,
+                             gemini_api_key: str,
                              table_name: str = "gitlab_documents") -> SupabaseRAGSystem:
     """
     Create a cached SupabaseRAGSystem instance.
@@ -349,8 +340,7 @@ def create_supabase_rag_system(supabase_url: str,
     Args:
         supabase_url: Supabase project URL
         supabase_key: Supabase anon/service role key
-        gemini_api_key: Google Gemini API key
-        openai_api_key: OpenAI API key (optional)
+        gemini_api_key: Google Gemini API key (for both LLM and embeddings)
         table_name: Database table name
         
     Returns:
@@ -360,6 +350,5 @@ def create_supabase_rag_system(supabase_url: str,
         supabase_url=supabase_url,
         supabase_key=supabase_key,
         gemini_api_key=gemini_api_key,
-        openai_api_key=openai_api_key,
         table_name=table_name
     ) 

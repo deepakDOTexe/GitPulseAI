@@ -357,34 +357,31 @@ class SupabaseMigrator:
             return {}
 
     def create_vector_index(self) -> bool:
-        """Create vector similarity index for efficient searching."""
+        """Provide instructions for creating vector similarity index manually."""
         try:
             # Calculate appropriate lists parameter (rule of thumb: sqrt(rows))
             stats = self.get_stats()
             total_docs = stats.get("total_documents", 100)
             lists = max(1, int(total_docs ** 0.5))
             
-            logger.info(f"Creating vector index with lists={lists} for {total_docs} documents...")
+            logger.info(f"📋 Vector index creation (manual setup required):")
+            logger.info(f"🔧 Recommended lists parameter: {lists} (for {total_docs} documents)")
+            logger.info("")
+            logger.info("🚀 To create the vector index:")
+            logger.info("1. Go to your Supabase dashboard")
+            logger.info("2. Navigate to SQL Editor")
+            logger.info("3. Run this SQL command:")
+            logger.info("")
+            logger.info("   CREATE INDEX IF NOT EXISTS gitlab_documents_embedding_idx")
+            logger.info(f"   ON gitlab_documents USING ivfflat (embedding vector_cosine_ops)")
+            logger.info(f"   WITH (lists = {lists});")
+            logger.info("")
+            logger.info("✅ This will enable fast vector similarity search!")
             
-            # Create the index using raw SQL
-            index_sql = f"""
-                CREATE INDEX IF NOT EXISTS gitlab_documents_embedding_idx 
-                ON gitlab_documents USING ivfflat (embedding vector_cosine_ops)
-                WITH (lists = {lists});
-            """
-            
-            # Execute the SQL directly
-            result = self.supabase.postgrest.rpc('exec_sql', {'query': index_sql}).execute()
-            
-            if result:
-                logger.info("✅ Vector index created successfully")
-                return True
-            else:
-                logger.error("❌ Failed to create vector index")
-                return False
+            return True
                 
         except Exception as e:
-            logger.error(f"❌ Error creating vector index: {e}")
+            logger.error(f"❌ Error getting index info: {e}")
             return False
 
 def main():
@@ -500,9 +497,13 @@ def main():
         logger.info(f"   With embeddings: {final_stats.get('documents_with_embeddings', 0)}")
         
         if generate_embeddings and uploaded_count > 0:
-            logger.info("🎯 Creating vector similarity index...")
+            logger.info("🎯 Vector index setup instructions:")
             migrator.create_vector_index()
-            logger.info("✅ Vector index created successfully!")
+            logger.info("📝 Complete the index creation in your Supabase dashboard when convenient.")
+            logger.info("🎉 Your GitPulseAI cloud deployment is ready to use!")
+        else:
+            logger.info("🎉 Your GitPulseAI cloud deployment is ready!")
+            logger.info("💡 Consider generating embeddings for better search quality.")
         
     except Exception as e:
         logger.error(f"❌ Migration failed: {e}")
