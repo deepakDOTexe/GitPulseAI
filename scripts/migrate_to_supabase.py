@@ -1,36 +1,15 @@
 #!/usr/bin/env python3
 """
-Migrate GitLab Handbook Data to Supabase Vector Database
-
-This script uploads your local GitLab handbook data to Supabase,
-generating embeddings and storing them for cloud deployment.
-
-Usage:
-    python scripts/migrate_to_supabase.py
+Migration script to upload GitLab handbook data to Supabase with Google Gemini embeddings.
 """
 
 import os
 import json
 import time
 import logging
-from pathlib import Path
-from typing import Dict, List, Any, Optional
-
-try:
-    from supabase import create_client, Client
-    HAS_SUPABASE = True
-except ImportError:
-    print("supabase-py not installed. Run: pip install supabase")
-    HAS_SUPABASE = False
-
-try:
-    import openai
-    HAS_OPENAI = True
-except ImportError:
-    print("openai not installed. Run: pip install openai")
-    HAS_OPENAI = False
-
+from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
+from supabase import create_client, Client
 
 # Load environment variables
 load_dotenv()
@@ -42,343 +21,345 @@ logger = logging.getLogger(__name__)
 class SupabaseMigrator:
     """Migrate GitLab handbook data to Supabase vector database."""
     
-    def __init__(self, 
-                 supabase_url: str,
-                 supabase_key: str,
-                 openai_api_key: str,
-                 table_name: str = "gitlab_documents"):
-        """Initialize the migrator."""
+    def __init__(
+        self, 
+        supabase_url: str, 
+        supabase_key: str, 
+        gemini_api_key: str,
+        batch_size: int = 50,
+        rate_limit_delay: float = 0.1
+    ):
+        """
+        Initialize the Supabase migrator with Google Gemini embeddings.
+        
+        Args:
+            supabase_url: Supabase project URL
+            supabase_key: Supabase service key
+            gemini_api_key: Google Gemini API key
+            batch_size: Number of documents to upload per batch
+            rate_limit_delay: Delay between API calls to respect rate limits
+        """
         self.supabase_url = supabase_url
         self.supabase_key = supabase_key
-        self.openai_api_key = openai_api_key
-        self.table_name = table_name
+        self.gemini_api_key = gemini_api_key
+        self.batch_size = batch_size
+        self.rate_limit_delay = rate_limit_delay
         
-        # Initialize clients
+        # Initialize Supabase client
         self.supabase: Client = create_client(supabase_url, supabase_key)
-        openai.api_key = openai_api_key
         
-        logger.info("Initialized Supabase migrator")
+        logger.info("✅ Supabase migrator initialized with Google Gemini embeddings")
     
-    def test_connections(self) -> bool:
-        """Test connections to Supabase and OpenAI."""
+    def generate_embedding(self, text: str) -> Optional[List[float]]:
+        """
+        Generate embeddings using Google Gemini embedding API via REST.
+        
+        Args:
+            text: The text to generate embeddings for
+            
+        Returns:
+            List of float values representing the embedding, or None if error
+        """
+        try:
+            import requests
+            
+            # Use Google Gemini REST API for embeddings
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={self.gemini_api_key}"
+            
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            data = {
+                "model": "models/text-embedding-004",
+                "content": {
+                    "parts": [{"text": text}]
+                },
+                "taskType": "RETRIEVAL_DOCUMENT"
+            }
+            
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            
+            # Add rate limiting
+            time.sleep(self.rate_limit_delay)
+            
+            result = response.json()
+            if 'embedding' in result and 'values' in result['embedding']:
+                return result['embedding']['values']
+            else:
+                logger.error("❌ Unexpected response format from Google Gemini API")
+                return None
+        
+        except Exception as e:
+            logger.error(f"❌ Failed to generate embedding for text: {str(e)}")
+            return None
+    
+    def test_connection(self) -> bool:
+        """Test both Supabase and Google Gemini API connections."""
         try:
             # Test Supabase connection
-            result = self.supabase.table(self.table_name).select("count", count="exact").limit(1).execute()
-            logger.info("✅ Supabase connection successful")
+            logger.info("🔍 Testing Supabase connection...")
+            result = self.supabase.table('gitlab_documents').select('count').execute()
+            doc_count = len(result.data) if result.data else 0
+            logger.info(f"✅ Supabase connected! Found {doc_count} existing documents")
             
-            # Test OpenAI connection
-            response = openai.embeddings.create(
-                model="text-embedding-ada-002",
-                input="test"
-            )
-            logger.info("✅ OpenAI connection successful")
+            # Test Google Gemini embedding API
+            logger.info("🔍 Testing Google Gemini embedding API...")
+            test_embedding = self.generate_embedding("Hello, world!")
             
-            return True
-            
+            if test_embedding and len(test_embedding) > 0:
+                logger.info(f"✅ Google Gemini embedding API connected! Embedding dimension: {len(test_embedding)}")
+                return True
+            else:
+                logger.error("❌ Google Gemini embedding API test failed")
+                return False
+                
         except Exception as e:
             logger.error(f"❌ Connection test failed: {e}")
             return False
-    
-    def generate_embedding(self, text: str) -> Optional[List[float]]:
-        """Generate embedding for text using OpenAI."""
-        try:
-            response = openai.embeddings.create(
-                model="text-embedding-ada-002",
-                input=text.replace('\n', ' ')
-            )
-            return response.data[0].embedding
-            
-        except Exception as e:
-            logger.error(f"Error generating embedding: {e}")
-            return None
-    
+
     def upload_document(self, document: Dict[str, Any], generate_embeddings: bool = True) -> bool:
-        """Upload a single document to Supabase."""
+        """Upload a single document to Supabase with optional embedding generation."""
         try:
-            doc_id = document.get('id')
-            content = document.get('content', '')
-            
-            if not doc_id or not content.strip():
-                logger.warning(f"Skipping document with missing id or content: {doc_id}")
-                return False
-            
-            # Generate embedding if requested
-            embedding = None
-            if generate_embeddings:
-                embedding = self.generate_embedding(content)
-                if not embedding:
-                    logger.warning(f"Failed to generate embedding for document: {doc_id}")
-            
-            # Prepare document data
+            # Create document data
             doc_data = {
-                'document_id': doc_id,
-                'title': document.get('title', ''),
-                'content': content,
-                'url': document.get('url', ''),
-                'section': document.get('section', ''),
-                'keywords': json.dumps(document.get('keywords', [])),
-                'metadata': json.dumps({
-                    'source': document.get('source', ''),
-                    'chunk_index': document.get('chunk_index', 0),
-                    'migrated_at': time.strftime("%Y-%m-%d %H:%M:%S")
-                }),
-                'embedding': embedding
+                "document_id": document.get("id", f"doc_{hash(str(document))}"),
+                "title": document.get("title", ""),
+                "content": document.get("content", ""),
+                "url": document.get("url", ""),
+                "section": document.get("section", ""),
+                "metadata": document.get("metadata", {}),
+                "created_at": "now()",
+                "updated_at": "now()"
             }
             
+            # Generate embedding if requested
+            if generate_embeddings and doc_data["content"]:
+                logger.info(f"🔄 Generating embedding for: {doc_data['title'][:50]}...")
+                embedding = self.generate_embedding(doc_data["content"])
+                if embedding:
+                    doc_data["embedding"] = embedding
+                    logger.info("✅ Embedding generated successfully")
+                else:
+                    logger.warning("⚠️ Failed to generate embedding, uploading without it")
+            
             # Upload to Supabase (upsert to handle duplicates)
-            result = self.supabase.table(self.table_name).upsert(doc_data).execute()
+            result = self.supabase.table('gitlab_documents').upsert(doc_data).execute()
             
             if result.data:
-                logger.debug(f"✅ Uploaded document: {doc_id}")
+                logger.info(f"✅ Uploaded: {doc_data['title'][:50]}")
                 return True
             else:
-                logger.error(f"❌ Failed to upload document: {doc_id}")
+                logger.error(f"❌ Failed to upload: {doc_data['title'][:50]}")
                 return False
                 
         except Exception as e:
-            logger.error(f"Error uploading document {document.get('id', 'unknown')}: {e}")
+            logger.error(f"❌ Error uploading document: {e}")
             return False
-    
-    def upload_documents_batch(self, 
-                              documents: List[Dict[str, Any]], 
-                              generate_embeddings: bool = True,
-                              batch_size: int = 50) -> int:
+
+    def upload_documents_batch(self, documents: List[Dict[str, Any]], generate_embeddings: bool = True, batch_size: Optional[int] = None) -> int:
         """Upload multiple documents in batches."""
+        if not documents:
+            logger.warning("No documents to upload")
+            return 0
+        
+        if batch_size is None:
+            batch_size = self.batch_size
+            
+        total_documents = len(documents)
         successful_uploads = 0
-        total_docs = len(documents)
         
-        logger.info(f"Uploading {total_docs} documents in batches of {batch_size}")
+        logger.info(f"📤 Uploading {total_documents} documents in batches of {batch_size}")
         
-        for i in range(0, total_docs, batch_size):
+        # Process documents in batches
+        for i in range(0, total_documents, batch_size):
             batch = documents[i:i + batch_size]
             batch_data = []
             
-            logger.info(f"Processing batch {i//batch_size + 1}/{(total_docs + batch_size - 1)//batch_size}")
+            logger.info(f"🔄 Processing batch {i//batch_size + 1}/{(total_documents + batch_size - 1)//batch_size}")
             
             for doc in batch:
-                doc_id = doc.get('id')
-                content = doc.get('content', '')
-                
-                if not doc_id or not content.strip():
-                    continue
+                # Prepare document data
+                doc_data = {
+                    "document_id": doc.get("id", f"doc_{hash(str(doc))}"),
+                    "title": doc.get("title", ""),
+                    "content": doc.get("content", ""),
+                    "url": doc.get("url", ""),
+                    "section": doc.get("section", ""),
+                    "metadata": doc.get("metadata", {}),
+                    "created_at": "now()",
+                    "updated_at": "now()"
+                }
                 
                 # Generate embedding if requested
-                embedding = None
-                if generate_embeddings:
-                    embedding = self.generate_embedding(content)
+                if generate_embeddings and doc_data["content"]:
+                    embedding = self.generate_embedding(doc_data["content"])
                     if embedding:
-                        logger.debug(f"Generated embedding for {doc_id}")
-                    else:
-                        logger.warning(f"Failed embedding for {doc_id}")
+                        doc_data["embedding"] = embedding
                 
-                doc_data = {
-                    'document_id': doc_id,
-                    'title': doc.get('title', ''),
-                    'content': content,
-                    'url': doc.get('url', ''),
-                    'section': doc.get('section', ''),
-                    'keywords': json.dumps(doc.get('keywords', [])),
-                    'metadata': json.dumps({
-                        'source': doc.get('source', ''),
-                        'chunk_index': doc.get('chunk_index', 0),
-                        'migrated_at': time.strftime("%Y-%m-%d %H:%M:%S")
-                    }),
-                    'embedding': embedding
-                }
                 batch_data.append(doc_data)
-                
-                # Rate limiting for OpenAI API
-                if generate_embeddings:
-                    time.sleep(0.1)  # 10 requests per second max
             
             try:
                 # Upload batch to Supabase
-                result = self.supabase.table(self.table_name).upsert(batch_data).execute()
+                result = self.supabase.table('gitlab_documents').upsert(batch_data).execute()
                 batch_success = len(result.data) if result.data else 0
                 successful_uploads += batch_success
                 
-                logger.info(f"✅ Batch {i//batch_size + 1}: Uploaded {batch_success}/{len(batch_data)} documents")
-                
-                # Small delay between batches
-                time.sleep(0.5)
+                logger.info(f"✅ Batch uploaded: {batch_success}/{len(batch)} documents")
                 
             except Exception as e:
-                logger.error(f"❌ Error uploading batch {i//batch_size + 1}: {e}")
+                logger.error(f"❌ Batch upload failed: {e}")
+                continue
         
-        logger.info(f"🎉 Migration complete: {successful_uploads}/{total_docs} documents uploaded")
+        logger.info(f"🎉 Upload completed: {successful_uploads}/{total_documents} documents uploaded successfully")
         return successful_uploads
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get statistics about uploaded documents."""
         try:
             # Get total count
-            count_result = self.supabase.table(self.table_name).select("count", count="exact").execute()
-            total_docs = count_result.count if count_result.count is not None else 0
+            all_docs = self.supabase.table('gitlab_documents').select("*").execute()
+            total_docs = len(all_docs.data) if all_docs.data else 0
             
             # Get documents with embeddings
-            embedding_result = self.supabase.table(self.table_name).select("count", count="exact").not_.is_("embedding", "null").execute()
-            docs_with_embeddings = embedding_result.count if embedding_result.count is not None else 0
+            docs_with_embeddings = [doc for doc in all_docs.data if doc.get('embedding')] if all_docs.data else []
             
             return {
-                'total_documents': total_docs,
-                'documents_with_embeddings': docs_with_embeddings,
-                'embedding_coverage': docs_with_embeddings / total_docs * 100 if total_docs > 0 else 0
+                "total_documents": total_docs,
+                "documents_with_embeddings": len(docs_with_embeddings),
+                "documents_without_embeddings": total_docs - len(docs_with_embeddings)
             }
             
         except Exception as e:
             logger.error(f"Error getting stats: {e}")
             return {}
-    
-    def create_vector_index(self):
-        """Create vector index for better performance."""
+
+    def create_vector_index(self) -> bool:
+        """Create vector similarity index for efficient searching."""
         try:
+            # Calculate appropriate lists parameter (rule of thumb: sqrt(rows))
             stats = self.get_stats()
-            total_docs = stats.get('total_documents', 0)
+            total_docs = stats.get("total_documents", 100)
+            lists = max(1, int(total_docs ** 0.5))
             
-            if total_docs == 0:
-                logger.warning("No documents found, skipping index creation")
-                return
+            logger.info(f"Creating vector index with lists={lists} for {total_docs} documents...")
             
-            # Calculate optimal lists parameter (4 * sqrt(rows))
-            import math
-            lists = max(1, int(4 * math.sqrt(total_docs)))
-            
-            logger.info(f"Creating vector index for {total_docs} documents with lists={lists}")
-            
-            # Create index using SQL
+            # Create the index using raw SQL
             index_sql = f"""
                 CREATE INDEX IF NOT EXISTS gitlab_documents_embedding_idx 
-                ON {self.table_name} USING ivfflat (embedding vector_cosine_ops)
+                ON gitlab_documents USING ivfflat (embedding vector_cosine_ops)
                 WITH (lists = {lists});
             """
             
-            result = self.supabase.rpc('exec_sql', {'sql': index_sql}).execute()
-            logger.info("✅ Vector index created successfully")
+            # Execute the SQL directly
+            result = self.supabase.postgrest.rpc('exec_sql', {'query': index_sql}).execute()
             
+            if result:
+                logger.info("✅ Vector index created successfully")
+                return True
+            else:
+                logger.error("❌ Failed to create vector index")
+                return False
+                
         except Exception as e:
-            logger.warning(f"Could not create vector index automatically: {e}")
-            logger.info("You can create it manually in Supabase SQL editor after migration")
-
+            logger.error(f"❌ Error creating vector index: {e}")
+            return False
 
 def main():
-    """Main migration function."""
+    """Main function to run the migration."""
+    load_dotenv()
     
-    if not HAS_SUPABASE or not HAS_OPENAI:
-        print("❌ Missing required packages. Install with:")
-        print("   pip install supabase openai")
+    # Get configuration from environment
+    supabase_url = os.getenv('SUPABASE_URL')
+    supabase_key = os.getenv('SUPABASE_KEY')
+    gemini_api_key = os.getenv('GEMINI_API_KEY')
+    
+    if not supabase_url:
+        logger.error("❌ SUPABASE_URL not found in environment variables")
+        logger.info("Please add SUPABASE_URL=https://your-project.supabase.co to your .env file")
         return
     
-    print("🚀 GitLab Handbook to Supabase Migration Tool")
-    print("This will upload your local GitLab data to Supabase with embeddings")
-    print()
-    
-    # Get environment variables
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_KEY") 
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    
-    if not supabase_url or not supabase_key:
-        print("❌ Missing Supabase credentials. Please set:")
-        print("   SUPABASE_URL=your_supabase_project_url")
-        print("   SUPABASE_KEY=your_supabase_anon_key")
+    if not supabase_key:
+        logger.error("❌ SUPABASE_KEY not found in environment variables")
+        logger.info("Please add SUPABASE_KEY=your_service_key_here to your .env file")
         return
     
-    if not openai_api_key:
-        print("❌ Missing OpenAI API key. Please set:")
-        print("   OPENAI_API_KEY=your_openai_api_key")
+    if not gemini_api_key:
+        logger.error("❌ GEMINI_API_KEY not found in environment variables")
+        logger.info("Please add GEMINI_API_KEY=your_gemini_key_here to your .env file")
         return
     
-    # Available data files
-    data_files = {
-        "1": ("data/sample_gitlab_data.json", "Sample GitLab data (12 docs)"),
-        "2": ("data/gitlab_specific_policies.json", "Specific policies (5 docs)"), 
-        "3": ("data/gitlab_comprehensive_handbook.json", "Comprehensive handbook (25 docs)"),
-        "4": ("data/gitlab_two_pages.json", "Two pages only (2 docs)")
-    }
+    # Initialize migrator
+    migrator = SupabaseMigrator(
+        supabase_url=supabase_url,
+        supabase_key=supabase_key,
+        gemini_api_key=gemini_api_key
+    )
     
-    print("📁 Available data files:")
-    for key, (file_path, description) in data_files.items():
-        file_exists = Path(file_path).exists()
-        status = "✅" if file_exists else "❌"
-        print(f"   {key}. {description} {status}")
-    
-    print()
-    choice = input("Select data file (1-4, default=3): ").strip() or "3"
-    
-    if choice not in data_files:
-        print(f"❌ Invalid choice: {choice}")
+    # Test connection
+    logger.info("🚀 Starting Supabase migration with Google Gemini embeddings...")
+    if not migrator.test_connection():
+        logger.error("❌ Connection test failed. Please check your credentials.")
         return
     
-    input_file, description = data_files[choice]
+    # Ask user which data file to use
+    data_files = [
+        "data/gitlab_two_pages.json",
+        "data/gitlab_specific_policies.json", 
+        "data/gitlab_comprehensive_handbook.json"
+    ]
     
-    if not Path(input_file).exists():
-        print(f"❌ File not found: {input_file}")
-        return
-    
-    # Ask about embeddings
-    print()
-    generate_embeddings = input("Generate embeddings? (y/N): ").strip().lower() == 'y'
-    
-    print(f"\n📤 Configuration:")
-    print(f"   Data file: {input_file}")
-    print(f"   Generate embeddings: {'Yes' if generate_embeddings else 'No'}")
-    print(f"   Supabase URL: {supabase_url}")
-    
-    print()
-    confirm = input("Continue with migration? (y/N): ").strip().lower()
-    if confirm != 'y':
-        print("Migration cancelled")
-        return
+    print("\nAvailable data files:")
+    for i, file in enumerate(data_files, 1):
+        if os.path.exists(file):
+            with open(file, 'r') as f:
+                data = json.load(f)
+                print(f"{i}. {file} ({len(data.get('documents', []))} documents)")
+        else:
+            print(f"{i}. {file} (not found)")
     
     try:
-        # Initialize migrator
-        print("\n🔧 Initializing migration...")
-        migrator = SupabaseMigrator(supabase_url, supabase_key, openai_api_key)
-        
-        # Test connections
-        if not migrator.test_connections():
-            print("❌ Connection test failed")
+        choice = int(input("\nSelect data file (1-3): ")) - 1
+        if choice < 0 or choice >= len(data_files):
+            logger.error("Invalid choice")
             return
-        
-        # Load data
-        print(f"📥 Loading data from {input_file}...")
-        with open(input_file, 'r', encoding='utf-8') as f:
+            
+        data_file = data_files[choice]
+        if not os.path.exists(data_file):
+            logger.error(f"❌ Data file not found: {data_file}")
+            return
+    except ValueError:
+        logger.error("Invalid input")
+        return
+    
+    # Ask about generating embeddings
+    generate_embeddings = input("Generate embeddings using Google Gemini? (y/N): ").lower().strip() == 'y'
+    
+    # Load and upload data
+    try:
+        with open(data_file, 'r') as f:
             data = json.load(f)
         
         documents = data.get('documents', [])
         if not documents:
-            print("❌ No documents found in data file")
+            logger.error("❌ No documents found in data file")
             return
         
-        print(f"Found {len(documents)} documents")
-        
-        # Upload documents
-        print(f"\n⬆️ Starting migration...")
-        successful_uploads = migrator.upload_documents_batch(
-            documents, 
-            generate_embeddings=generate_embeddings,
-            batch_size=25  # Smaller batches for embedding generation
+        uploaded_count = migrator.upload_documents_batch(
+            documents=documents, 
+            generate_embeddings=generate_embeddings
         )
         
-        # Show final stats
-        print(f"\n📊 Final Statistics:")
-        stats = migrator.get_stats()
-        for key, value in stats.items():
-            print(f"   {key.replace('_', ' ').title()}: {value}")
+        logger.info(f"🎉 Migration completed! Uploaded {uploaded_count} documents to Supabase")
         
-        # Create vector index if embeddings were generated
-        if generate_embeddings and stats.get('documents_with_embeddings', 0) > 0:
-            print(f"\n🔧 Creating vector index...")
+        if generate_embeddings and uploaded_count > 0:
+            logger.info("🎯 Creating vector similarity index...")
             migrator.create_vector_index()
-        
-        print(f"\n🎉 Migration Complete!")
-        print(f"   Uploaded: {successful_uploads}/{len(documents)} documents")
-        print(f"   Your Supabase vector database is ready for GitPulseAI!")
+            logger.info("✅ Vector index created successfully!")
         
     except Exception as e:
-        print(f"❌ Migration failed: {e}")
-        logger.exception("Detailed migration error:")
-
+        logger.error(f"❌ Migration failed: {e}")
 
 if __name__ == "__main__":
     main() 
