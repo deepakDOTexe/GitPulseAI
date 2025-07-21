@@ -10,6 +10,7 @@ import logging
 from typing import Dict, List, Any, Optional
 import json
 from pathlib import Path
+import warnings
 try:
     from sentence_transformers import SentenceTransformer
 except ImportError:
@@ -228,12 +229,23 @@ class LocalVectorStore:
             
             # Calculate similarities with all documents
             document_vectors = np.array(self.embeddings)
-            similarities = cosine_similarity(query_vector, document_vectors)[0]
+            
+            # Calculate similarities with warning suppression for numerical edge cases
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*divide by zero.*")
+                warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*overflow.*")
+                warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*invalid value.*")
+                
+                similarities = cosine_similarity(query_vector, document_vectors)[0]
+            
+            # Handle numerical issues (NaN, inf values)
+            similarities = np.nan_to_num(similarities, nan=0.0, posinf=0.0, neginf=0.0)
             
             # Create results with similarity scores
             results = []
             for i, similarity in enumerate(similarities):
-                if similarity >= self.similarity_threshold:
+                # Ensure similarity is a valid number
+                if np.isfinite(similarity) and similarity >= self.similarity_threshold:
                     document = self.documents[i].copy()
                     document['similarity_score'] = float(similarity)
                     results.append(document)
@@ -327,7 +339,18 @@ class LocalVectorStore:
         if self.embeddings and len(self.embeddings) > 1:
             # Calculate some basic statistics
             document_vectors = np.array(self.embeddings)
-            similarities_matrix = cosine_similarity(document_vectors)
+            
+            # Calculate similarities with warning suppression
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*divide by zero.*")
+                warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*overflow.*")
+                warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*invalid value.*")
+                
+                similarities_matrix = cosine_similarity(document_vectors)
+            
+            # Handle numerical issues
+            similarities_matrix = np.nan_to_num(similarities_matrix, nan=0.0, posinf=0.0, neginf=0.0)
+            
             # Get upper triangle (excluding diagonal)
             indices = np.triu_indices(len(self.embeddings), k=1)
             all_similarities = similarities_matrix[indices]

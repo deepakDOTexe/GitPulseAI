@@ -10,6 +10,7 @@ import logging
 from typing import Dict, List, Any, Optional
 from collections import Counter
 import re
+import warnings
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from src.config import config
@@ -208,13 +209,22 @@ class SimpleVectorStore:
             # Transform query using the fitted vectorizer
             query_vector = self.tfidf_vectorizer.transform([query])
             
-            # Calculate similarities
-            similarities = cosine_similarity(query_vector, self.tfidf_matrix)[0]
+            # Calculate similarities with warning suppression for numerical edge cases
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*divide by zero.*")
+                warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*overflow.*")
+                warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*invalid value.*")
+                
+                similarities = cosine_similarity(query_vector, self.tfidf_matrix)[0]
+            
+            # Handle numerical issues (NaN, inf values)
+            similarities = np.nan_to_num(similarities, nan=0.0, posinf=0.0, neginf=0.0)
             
             # Create results with similarity scores
             results = []
             for i, similarity in enumerate(similarities):
-                if similarity >= self.similarity_threshold:
+                # Ensure similarity is a valid number
+                if np.isfinite(similarity) and similarity >= self.similarity_threshold:
                     document = self.documents[i].copy()
                     document['similarity_score'] = float(similarity)
                     results.append(document)
