@@ -10,9 +10,6 @@ import logging
 from typing import Dict, List, Any, Optional
 import json
 from pathlib import Path
-import ssl
-import urllib.request
-
 try:
     from sentence_transformers import SentenceTransformer
 except ImportError:
@@ -55,28 +52,6 @@ class LocalVectorStore:
         # Initialize the embedding model
         self._initialize_model()
         
-    def _fix_ssl_context(self):
-        """Fix SSL context for macOS and other systems with certificate issues."""
-        try:
-            # Create unverified SSL context for downloading models
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-            
-            # Install the context for HTTPS requests
-            urllib.request.install_opener(
-                urllib.request.build_opener(
-                    urllib.request.HTTPSHandler(context=ssl_context)
-                )
-            )
-            
-            logger.info("SSL context configured for model downloading")
-            return True
-            
-        except Exception as e:
-            logger.warning(f"Could not configure SSL context: {e}")
-            return False
-        
     def _initialize_model(self):
         """Initialize the sentence transformer model."""
         if SentenceTransformer is None:
@@ -85,26 +60,8 @@ class LocalVectorStore:
             
         try:
             logger.info(f"Loading sentence transformer model: {self.model_name}")
-            
-            # First try to load normally
-            try:
-                self.embedding_model = SentenceTransformer(self.model_name)
-                logger.info(f"Model loaded successfully: {self.model_name}")
-                
-            except Exception as ssl_error:
-                if "SSL" in str(ssl_error) or "certificate" in str(ssl_error).lower():
-                    logger.warning(f"SSL error encountered: {ssl_error}")
-                    logger.info("Attempting to fix SSL configuration...")
-                    
-                    # Try to fix SSL and retry
-                    if self._fix_ssl_context():
-                        logger.info("Retrying model download with fixed SSL...")
-                        self.embedding_model = SentenceTransformer(self.model_name)
-                        logger.info(f"Model loaded successfully after SSL fix: {self.model_name}")
-                    else:
-                        raise ssl_error
-                else:
-                    raise ssl_error
+            self.embedding_model = SentenceTransformer(self.model_name)
+            logger.info(f"Model loaded successfully: {self.model_name}")
             
             # Get actual embedding dimension
             if self.embedding_model:
@@ -116,15 +73,12 @@ class LocalVectorStore:
             logger.error(f"Failed to load embedding model: {e}")
             logger.error("This could be due to:")
             logger.error("1. Network connectivity issues")
-            logger.error("2. SSL certificate problems (common on macOS)")
+            logger.error("2. Missing dependencies")
             logger.error("3. Firewall/proxy settings")
-            logger.error("4. Missing dependencies")
             logger.error("")
             logger.error("Troubleshooting steps:")
             logger.error("1. Check your internet connection")
-            logger.error("2. Try running: pip install --upgrade certifi")
-            logger.error("3. On macOS, try: /Applications/Python\\ 3.x/Install\\ Certificates.command")
-            logger.error("4. Or set environment variable: CURL_CA_BUNDLE=''")
+            logger.error("2. Ensure sentence-transformers is installed: pip install sentence-transformers")
             
             self.embedding_model = None
     

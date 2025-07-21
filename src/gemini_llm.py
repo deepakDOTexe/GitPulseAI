@@ -84,7 +84,7 @@ When responding:
             return
         
         try:
-            # Configure the API with REST transport to avoid gRPC SSL issues
+            # Configure the API with REST transport (more reliable than gRPC)
             genai.configure(api_key=self.api_key, transport='rest')
             
             # Create the model with safety settings
