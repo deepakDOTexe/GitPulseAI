@@ -9,6 +9,7 @@ This module implements a RAG system using:
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
+import streamlit as st
 
 from src.config import config
 from src.data_processor import GitLabDataProcessor, load_and_process_gitlab_data
@@ -23,6 +24,7 @@ class HybridRAGSystem:
     Hybrid RAG system combining:
     - Hugging Face embeddings (free, local) with TF-IDF fallback
     - Google Gemini LLM (generous free tier)
+    - Performance optimizations with caching
     """
     
     def __init__(self, 
@@ -60,7 +62,38 @@ class HybridRAGSystem:
         self.is_initialized = False
         self.initialization_error = None
         
+        # Performance improvements
+        self._query_cache = {}  # Simple query cache
+        self._max_cache_size = 50
+        
         logger.info("Initialized HybridRAGSystem (HuggingFace + Gemini with TF-IDF fallback)")
+    
+    @st.cache_data(ttl=300)  # Cache for 5 minutes
+    def _cached_search(_self, query: str, max_results: int) -> List[Dict[str, Any]]:
+        """Cached document search to improve performance."""
+        try:
+            if _self.using_simple_store and _self.simple_vector_store:
+                return _self.simple_vector_store.search(query, max_results)
+            elif _self.vector_store:
+                return _self.vector_store.search(query, max_results)
+            else:
+                return []
+        except Exception as e:
+            logger.error(f"Error in cached search: {e}")
+            return []
+    
+    def _get_cache_key(self, query: str, conversation_history: List[Dict]) -> str:
+        """Generate cache key for query results."""
+        history_str = str([msg.get("content", "")[:50] for msg in conversation_history[-3:]])
+        return f"{query[:100]}_{hash(history_str)}"
+    
+    def _manage_cache(self):
+        """Simple cache management to prevent memory bloat."""
+        if len(self._query_cache) > self._max_cache_size:
+            # Remove oldest entries (simple FIFO)
+            oldest_keys = list(self._query_cache.keys())[:10]
+            for key in oldest_keys:
+                del self._query_cache[key]
     
     def initialize(self, force_reload: bool = False) -> bool:
         """

@@ -1,23 +1,25 @@
-# GitPulseAI - GitLab Handbook Assistant
+# GitPulseAI - GitLab Handbook Assistant 🔍💬
 
-A Streamlit-based AI chatbot that helps users navigate GitLab's handbook and direction pages through conversational AI using RAG (Retrieval-Augmented Generation) architecture.
+A modern Streamlit-based AI chatbot that helps users navigate GitLab's handbook and policies through conversational AI using Google Gemini and RAG (Retrieval-Augmented Generation) architecture.
 
 ## 🚀 Features
 
 - **Conversational AI**: Natural language interaction with GitLab documentation
+- **Dual Deployment Modes**: Local development or cloud deployment with Supabase
+- **Google Gemini Integration**: Powered by Google's Gemini LLM and embeddings
+- **Clean Native UI**: Built with Streamlit's native chat components
 - **Source Citations**: Responses include references to original GitLab pages
-- **Follow-up Questions**: Intelligent suggestions for deeper exploration
-- **Accessibility**: Built with accessibility features and keyboard navigation
-- **Error Handling**: Robust error handling for smooth user experience
-- **Clean UI**: Modern, intuitive interface with GitLab branding
+- **Hybrid Search**: Vector similarity with keyword fallback
+- **Modern Architecture**: OpenAI-free, cost-effective solution
 
-## 📋 Requirements
+## 🛠️ Quick Setup
 
+### **Prerequisites**
 - Python 3.8+
-- OpenAI API key
-- Internet connection for API calls
+- Google Gemini API key (free)
+- Supabase account (for cloud deployment)
 
-## 🛠️ Installation
+### **Installation**
 
 1. **Clone the repository**
    ```bash
@@ -25,122 +27,118 @@ A Streamlit-based AI chatbot that helps users navigate GitLab's handbook and dir
    cd GitPulseAI
    ```
 
-2. **Create a virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
+2. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Set up environment variables**
+3. **Set up environment variables**
    ```bash
-   # Create a .env file in the project root
-   touch .env
-   
-   # Add your OpenAI API key
-   echo "OPENAI_API_KEY=your_openai_api_key_here" >> .env
+   cp .envexample .env
+   # Edit .env with your API keys
    ```
 
-## ⚙️ Configuration
-
-The application uses environment variables for configuration. Create a `.env` file in the project root:
-
-```env
-# Required
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Optional (with defaults)
-APP_NAME=GitLab Handbook Assistant
-APP_VERSION=1.0.0
-DEBUG=False
-
-# OpenAI Configuration
-OPENAI_MODEL=gpt-3.5-turbo
-OPENAI_TEMPERATURE=0.1
-OPENAI_MAX_TOKENS=1000
-
-# Embedding Configuration
-EMBEDDING_MODEL=text-embedding-ada-002
-EMBEDDING_DIMENSION=1536
-
-# Vector Search Configuration
-SIMILARITY_THRESHOLD=0.7
-MAX_SEARCH_RESULTS=5
-
-# Logging
-LOG_LEVEL=INFO
-LOG_FILE=logs/chatbot.log
-```
-
-## 🏃‍♂️ Usage
-
-1. **Start the application**
+4. **Run the application**
    ```bash
    streamlit run app.py
    ```
 
-2. **Access the interface**
-   - Open your browser and go to `http://localhost:8501`
-   - Start chatting with the GitLab Handbook Assistant
+## ⚙️ Configuration
 
-3. **Example questions to try**
-   - "What are GitLab's core values?"
-   - "How does GitLab handle remote work?"
-   - "What is the GitLab review process?"
-   - "How do I contribute to GitLab?"
+### **Local Development (.env)**
+```env
+# Required
+GEMINI_API_KEY=your_gemini_api_key_here
 
-## 🏗️ Project Structure
+# Optional (for local mode)
+SAMPLE_DATA_FILE=data/gitlab_comprehensive_handbook.json
+USE_SUPABASE=false
+```
+
+### **Cloud Deployment (.env)**
+```env
+# Required
+GEMINI_API_KEY=your_gemini_api_key_here
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_supabase_anon_key_here
+USE_SUPABASE=true
+```
+
+## 🌩️ Cloud Deployment (Supabase)
+
+For production deployment with Supabase vector database:
+
+1. **Create Supabase Project**
+   - Go to [supabase.com](https://supabase.com) and create a new project
+
+2. **Set up Database**
+   ```sql
+   -- Run in Supabase SQL Editor
+   -- See sql/supabase_setup.sql for complete setup
+   ```
+
+3. **Migrate Data**
+   ```bash
+   python scripts/migrate_to_supabase.py
+   ```
+
+4. **Deploy to Streamlit Cloud**
+   - Connect your GitHub repository
+   - Set environment variables
+   - Deploy!
+
+## 📁 Project Structure
 
 ```
 GitPulseAI/
-├── app.py                 # Main Streamlit application
-├── requirements.txt       # Python dependencies
-├── .env                   # Environment variables (create this)
-├── .gitignore            # Git ignore rules
-├── README.md             # This file
-├── PROJECT_WRITEUP.md    # Project overview
-├── TECHNICAL_APPROACH.md # Technical documentation
-├── src/                  # Source code modules
-│   ├── __init__.py
-│   ├── config.py         # Configuration management
-│   ├── rag_system.py     # RAG system implementation (coming soon)
-│   └── data_processor.py # Data processing utilities (coming soon)
-├── data/                 # Sample data files (coming soon)
-├── logs/                 # Application logs
-└── tests/                # Test files (coming soon)
+├── app.py                          # Main Streamlit application
+├── requirements.txt                # Dependencies
+├── .envexample                     # Environment template
+├── src/                           # Core modules
+│   ├── supabase_rag_system.py    # Cloud RAG system
+│   ├── hybrid_rag_system.py      # Local RAG system
+│   ├── gemini_llm.py             # Google Gemini integration
+│   └── ...
+├── data/                          # GitLab handbook data
+├── scripts/                       # Utility scripts
+├── docs/                         # Documentation
+└── sql/                          # Database setup
 ```
 
-## 🔧 Development Status
+## 🎯 Usage
 
-This is a 1-week MVP implementation. Current status:
+1. **Start the application**: `streamlit run app.py`
+2. **Choose example questions** from the sidebar or type your own
+3. **Ask about GitLab**: Values, policies, remote work, culture, etc.
+4. **Get sourced responses** with references to original documentation
 
-- ✅ **Day 1-2**: Project setup and basic structure
-- ⏳ **Day 3-4**: Core RAG system implementation
-- ⏳ **Day 5-6**: Streamlit interface development
-- ⏳ **Day 7**: Testing and polish
+## 🔧 Development
 
-## 🎯 Features Implemented
+### **Adding New Data**
+```bash
+# Update GitLab handbook data
+python scripts/extract_comprehensive_handbook.py
 
-### Current (Day 1-2)
-- [x] Project structure and dependencies
-- [x] Basic Streamlit interface with placeholder responses
-- [x] Error handling and input validation
-- [x] Accessibility features (high contrast, keyboard navigation)
-- [x] GitLab branding and UI design
-- [x] Session state management
-- [x] Configuration management
+# For cloud deployment, migrate to Supabase
+python scripts/migrate_to_supabase.py
+```
 
-### Coming Soon (Day 3-7)
-- [ ] RAG system with OpenAI embeddings
-- [ ] Sample GitLab documentation data
-- [ ] Vector similarity search
-- [ ] Real AI responses with source citations
-- [ ] Comprehensive testing
-- [ ] Performance optimization
+### **Local Development**
+- Uses Hugging Face embeddings (offline)
+- TF-IDF fallback for reliability
+- Google Gemini for response generation
+
+### **Cloud Deployment**
+- Supabase PostgreSQL + pgvector
+- Google Gemini embeddings and LLM
+- Optimized for Streamlit Cloud
+
+## 📊 Architecture
+
+- **Local Mode**: HuggingFace embeddings + TF-IDF fallback + Gemini LLM
+- **Cloud Mode**: Supabase vector DB + Gemini embeddings + Gemini LLM
+- **Frontend**: Streamlit with native chat components
+- **Data**: GitLab handbook pages in structured JSON format
 
 ## 🤝 Contributing
 
@@ -157,43 +155,18 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🙏 Acknowledgments
 
 - GitLab for their commitment to transparency and open handbook
-- OpenAI for providing powerful AI capabilities
-- Streamlit for the excellent web app framework
-- The open-source community for inspiration and tools
+- Google for Gemini API and generous free tier
+- Supabase for excellent vector database capabilities
+- Streamlit for the amazing web app framework
 
 ## 📞 Support
 
-If you encounter any issues or have questions:
+If you encounter any issues:
 
 1. Check the existing [Issues](https://github.com/YourUsername/GitPulseAI/issues)
 2. Create a new issue with detailed information
-3. Include logs from `logs/chatbot.log` if applicable
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-1. **OpenAI API Key Error**
-   - Ensure your `.env` file contains a valid OpenAI API key
-   - Check that the key has sufficient credits
-
-2. **Dependencies Not Found**
-   - Ensure you're in the correct virtual environment
-   - Run `pip install -r requirements.txt` again
-
-3. **Port Already in Use**
-   - Use a different port: `streamlit run app.py --server.port 8502`
-
-4. **Logs Not Creating**
-   - Ensure the `logs/` directory exists
-   - Check file permissions
-
-### Performance Tips
-
-- Use environment variables to configure OpenAI model (GPT-3.5-turbo is faster and cheaper than GPT-4)
-- Adjust `OPENAI_MAX_TOKENS` based on your needs
-- Monitor API usage in your OpenAI dashboard
+3. Include your deployment mode (local/cloud) and error messages
 
 ---
 
-**Built with ❤️ by the GitPulseAI Team** 
+**Built with ❤️ using Google Gemini, Supabase, and Streamlit** 
