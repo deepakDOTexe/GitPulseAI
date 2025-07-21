@@ -33,7 +33,7 @@ st.set_page_config(
     page_title="GitPulseAI",
     page_icon="🦊",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # Custom CSS for better styling
@@ -329,8 +329,93 @@ def main():
             st.error("🔴 System Not Ready")
         
         st.markdown("---")
+        
+        # Example Questions in Sidebar
+        st.header("💡 Try These Questions")
+        
+        if st.button("🎯 GitLab's core values", key="sidebar_values", use_container_width=True):
+            st.session_state.conversation_history.append({
+                "role": "user",
+                "content": "What are GitLab's core values?",
+                "timestamp": datetime.now().isoformat()
+            })
+            st.rerun()
+        
+        if st.button("🏠 Remote work practices", key="sidebar_remote", use_container_width=True):
+            st.session_state.conversation_history.append({
+                "role": "user",
+                "content": "How does GitLab handle remote work?",
+                "timestamp": datetime.now().isoformat()
+            })
+            st.rerun()
+        
+        if st.button("⚙️ Engineering process", key="sidebar_engineering", use_container_width=True):
+            st.session_state.conversation_history.append({
+                "role": "user",
+                "content": "What is GitLab's engineering process?",
+                "timestamp": datetime.now().isoformat()
+            })
+            st.rerun()
+        
+        if st.button("🤝 Diversity & inclusion", key="sidebar_diversity", use_container_width=True):
+            st.session_state.conversation_history.append({
+                "role": "user",
+                "content": "How does GitLab approach diversity and inclusion?",
+                "timestamp": datetime.now().isoformat()
+            })
+            st.rerun()
+        
+        st.markdown("---")
+        
+        # How to Use Guide
+        with st.expander("📚 How to Use GitPulseAI"):
+            st.markdown("""
+            ### 🚀 Getting Started
+            
+            **GitPulseAI** is your AI-powered assistant for exploring GitLab's handbook and company policies.
+            
+            ### 💬 How to Chat
+            1. **Type your question** in the chat box below
+            2. **Click example questions** above for quick starts
+            3. **Ask follow-up questions** to dive deeper
+            
+            ### ✨ What You Can Ask About
+            
+            **Company Culture:**
+            - GitLab's values and mission
+            - Remote work philosophy
+            - Company diversity initiatives
+            - Team collaboration practices
+            
+            **Processes & Policies:**
+            - Engineering workflows
+            - Code review practices  
+            - Security guidelines
+            - HR policies and benefits
+            
+            **Best Practices:**
+            - Project management
+            - Communication guidelines
+            - Development standards
+            - Documentation practices
+            
+            ### 🎯 Tips for Better Results
+            - **Be specific**: "How does GitLab handle code reviews?" vs "Tell me about code"
+            - **Ask follow-ups**: Build on previous answers
+            - **Use keywords**: GitLab-specific terms work best
+            - **Check sources**: Review cited handbook sections
+            
+            ### 📖 Example Questions
+            - "What is GitLab's transparency value?"
+            - "How does GitLab onboard new team members?"
+            - "What are GitLab's security best practices?"
+            - "How does GitLab measure engineering productivity?"
+            """)
+        
+        st.markdown("---")
         st.markdown("💡 **Powered by:**")
         st.markdown("🤗 Hugging Face + 🤖 Google Gemini")
+        
         if st.button("🔄 Reinitialize System"):
             st.session_state.system_initialized = False
             st.session_state.rag_system = None
@@ -359,12 +444,22 @@ def main():
     # Main chat interface
     st.subheader("💬 Chat with the GitLab Handbook")
     
+    # Add some spacing
+    if not st.session_state.conversation_history:
+        st.markdown("""
+        <div style="text-align: center; padding: 2rem; color: #666;">
+        <h3>👋 Welcome to GitPulseAI!</h3>
+        <p>Ask me anything about GitLab's handbook, culture, processes, or policies.</p>
+        <p>💡 Try the example questions in the sidebar to get started!</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
     # Display conversation history
     for message in st.session_state.conversation_history:
         if message["role"] == "user":
-            st.markdown(f'<div class="chat-message user-message">👤 **You:** {message["content"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="chat-message user-message">👤 {message["content"]}</div>', unsafe_allow_html=True)
         elif message["role"] == "assistant":
-            st.markdown(f'<div class="chat-message assistant-message">🤖 **Assistant:** {message["content"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="chat-message assistant-message">🤖 {message["content"]}</div>', unsafe_allow_html=True)
     
     # Chat input
     user_input = st.chat_input("Ask about GitLab's handbook, culture, processes, or policies...")
@@ -422,47 +517,6 @@ def main():
         
         # Rerun to display the updated conversation
         st.rerun()
-    
-    # Example questions
-    st.subheader("💡 Example Questions")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.write("**About GitLab:**")
-        if st.button("What are GitLab's core values?"):
-            st.session_state.conversation_history.append({
-                "role": "user",
-                "content": "What are GitLab's core values?",
-                "timestamp": datetime.now().isoformat()
-            })
-            st.rerun()
-        
-        if st.button("How does GitLab handle remote work?"):
-            st.session_state.conversation_history.append({
-                "role": "user",
-                "content": "How does GitLab handle remote work?",
-                "timestamp": datetime.now().isoformat()
-            })
-            st.rerun()
-    
-    with col2:
-        st.write("**Processes & Culture:**")
-        if st.button("What is GitLab's engineering process?"):
-            st.session_state.conversation_history.append({
-                "role": "user",
-                "content": "What is GitLab's engineering process?",
-                "timestamp": datetime.now().isoformat()
-            })
-            st.rerun()
-        
-        if st.button("How does GitLab approach diversity and inclusion?"):
-            st.session_state.conversation_history.append({
-                "role": "user",
-                "content": "How does GitLab approach diversity and inclusion?",
-                "timestamp": datetime.now().isoformat()
-            })
-            st.rerun()
     
     # Footer
     st.markdown("---")
