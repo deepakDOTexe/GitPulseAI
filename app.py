@@ -419,6 +419,9 @@ def main():
             st.error(f"Error: {response['error']}")
         elif response.get("warning"):
             st.warning(f"Warning: {response['warning']}")
+        
+        # Rerun to display the updated conversation
+        st.rerun()
     
     # Example questions
     st.subheader("💡 Example Questions")
