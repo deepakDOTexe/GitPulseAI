@@ -77,11 +77,12 @@ class SupabaseVectorStore:
             List of embedding values, or None if failed
         """
         try:
-            # Use Google Gemini REST API for embeddings
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key={api_key}"
+            # Use Google Gemini REST API for embeddings (official format)
+            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent"
             
             headers = {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "x-goog-api-key": api_key
             }
             
             data = {
