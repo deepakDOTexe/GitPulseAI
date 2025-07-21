@@ -52,16 +52,19 @@ st.markdown("""
         border-radius: 0.5rem;
         margin-bottom: 1rem;
         word-wrap: break-word;
+        color: #333 !important;
     }
     
     .user-message {
         background-color: #e8f4f8;
         border-left: 4px solid #1f77b4;
+        color: #1f3a8a !important;
     }
     
     .assistant-message {
         background-color: #f0f8e8;
         border-left: 4px solid #2ca02c;
+        color: #166534 !important;
     }
     
     .source-box {
@@ -70,12 +73,31 @@ st.markdown("""
         border-radius: 0.3rem;
         margin: 0.5rem 0;
         border: 1px solid #dee2e6;
+        color: #333 !important;
     }
     
     .system-status {
         font-size: 0.9rem;
-        color: #666;
+        color: #666 !important;
         margin-top: 1rem;
+    }
+    
+    /* Ensure all text is visible */
+    .stMarkdown, .stWrite, .stText {
+        color: #333 !important;
+    }
+    
+    /* Fix input text visibility */
+    .stTextInput input {
+        color: #333 !important;
+        background-color: white !important;
+    }
+    
+    /* Fix button text */
+    .stButton button {
+        color: white !important;
+        background-color: #FC6D26 !important;
+        border: none !important;
     }
     
     .error-message {
@@ -84,6 +106,7 @@ st.markdown("""
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 1rem 0;
+        color: #cc0000 !important;
     }
     
     .success-message {
@@ -92,12 +115,14 @@ st.markdown("""
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 1rem 0;
+        color: #006600 !important;
     }
     
     .warning-message {
         background-color: #fff3e0;
         border-left: 4px solid #ff9800;
         padding: 1rem;
+        color: #e65100 !important;
         border-radius: 0.5rem;
         margin: 1rem 0;
     }
