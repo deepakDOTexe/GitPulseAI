@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup, Tag
 import json
 import time
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Union
 from urllib.parse import urljoin, urlparse
 import logging
 
@@ -46,7 +46,7 @@ class ComprehensiveHandbookExtractor:
         
         return text
     
-    def extract_page_content(self, url: str, title: str, category: str) -> Dict[str, Any] | None:
+    def extract_page_content(self, url: str, title: str, category: str) -> Optional[Dict[str, Any]]:
         """Extract content from a single handbook page."""
         try:
             logger.info(f"Extracting: {title} ({url})")
