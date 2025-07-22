@@ -453,7 +453,12 @@ def main():
         if os.path.exists(file):
             with open(file, 'r') as f:
                 data = json.load(f)
-                print(f"{i}. {file} ({len(data.get('documents', []))} documents)")
+                # Handle both list format and dict format
+                if isinstance(data, list):
+                    doc_count = len(data)
+                else:
+                    doc_count = len(data.get('documents', []))
+                print(f"{i}. {file} ({doc_count} documents)")
         else:
             print(f"{i}. {file} (not found)")
     
@@ -479,7 +484,12 @@ def main():
         with open(data_file, 'r') as f:
             data = json.load(f)
         
-        documents = data.get('documents', [])
+        # Handle both list format and dict format
+        if isinstance(data, list):
+            documents = data
+        else:
+            documents = data.get('documents', [])
+        
         if not documents:
             logger.error("❌ No documents found in data file")
             return
