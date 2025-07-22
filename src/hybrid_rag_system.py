@@ -230,23 +230,17 @@ class HybridRAGSystem:
             title = doc.get('title', 'Unknown Document')
             section = doc.get('section', '')
             content = doc.get('content', '')
-            url = doc.get('url', '')
-            similarity = doc.get('similarity_score', 0)
             
-            # Format document reference
-            doc_header = f"Document {i}: {title}"
-            if section:
-                doc_header += f" (Section: {section})"
-            doc_header += f" [Relevance: {similarity:.3f}]"
+            # Create clean context without URLs or technical metadata
+            if section and section != title:
+                context_header = f"{title} - {section}"
+            else:
+                context_header = title
             
-            context_part = f"{doc_header}\n"
-            if url:
-                context_part += f"Source: {url}\n"
-            context_part += f"Content: {content}\n"
-            
+            context_part = f"{context_header}:\n{content}"
             context_parts.append(context_part)
         
-        return "\n---\n".join(context_parts)
+        return "\n\n".join(context_parts)
     
     def _format_sources(self, documents: List[Dict[str, Any]]) -> List[Dict[str, str]]:
         """
@@ -294,7 +288,7 @@ class HybridRAGSystem:
         """
         if not self.is_initialized:
             return {
-                "answer": "I'm sorry, but the system is not properly initialized. Please try again later.",
+                "response": "I'm sorry, but the system is not properly initialized. Please try again later.",
                 "sources": [],
                 "error": self.initialization_error or "System not initialized",
                 "timestamp": datetime.now().isoformat()
@@ -342,18 +336,18 @@ class HybridRAGSystem:
                 suggestions = "\n".join([f"• {topic}" for topic in available_topics])
                 
                 return {
-                    "answer": f"""I couldn't find specific information about development environment setup in the current GitLab documentation sample. 
+                    "response": f"""I couldn't find specific information about that topic in what I have access to right now. 
 
-However, I can help you with these GitLab topics:
+However, I'd love to help you with these GitLab topics:
 
 {suggestions}
 
-For technical development setup, you might want to ask about:
+You could also try asking about:
 • "What are GitLab's engineering practices?"
-• "How does GitLab handle code reviews?"
+• "How does GitLab handle code reviews?"  
 • "What security guidelines does GitLab follow?"
 
-Could you try asking about one of these available topics instead?""",
+What would you like to know about?""",
                     "sources": [],
                     "warning": "No relevant documents found - showing available topics",
                     "timestamp": datetime.now().isoformat()
@@ -374,7 +368,7 @@ Could you try asking about one of these available topics instead?""",
             logger.info(f"Query processed successfully, {len(sources)} sources found")
             
             result = {
-                "answer": response,
+                "response": response,
                 "sources": sources,
                 "timestamp": datetime.now().isoformat(),
                 "num_sources": len(sources),
@@ -390,7 +384,7 @@ Could you try asking about one of these available topics instead?""",
         except Exception as e:
             logger.error(f"Error processing query: {e}")
             return {
-                "answer": f"I apologize, but I encountered an error while processing your query: {str(e)}",
+                "response": "I'm having a bit of trouble right now, but I'll be back up and running soon. Please try asking your question again!",
                 "sources": [],
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()

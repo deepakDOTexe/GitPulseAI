@@ -144,18 +144,24 @@ class SupabaseRAGSystem:
         context_parts = []
         for i, doc in enumerate(documents, 1):
             title = doc.get('title', 'Unknown')
+            section = doc.get('section', '')
             content = doc.get('content', '')
-            url = doc.get('url', '')
             
             # Truncate content to reasonable length
-            max_chars = 1000
+            max_chars = 1200
             if len(content) > max_chars:
                 content = content[:max_chars] + "..."
             
-            context_part = f"Document {i}: {title}\nSource: {url}\nContent: {content}\n"
+            # Create clean context without URLs or technical metadata
+            if section and section != title:
+                context_header = f"{title} - {section}"
+            else:
+                context_header = title
+            
+            context_part = f"{context_header}:\n{content}"
             context_parts.append(context_part)
         
-        return "\n".join(context_parts)
+        return "\n\n".join(context_parts)
     
     def query(self, user_query: str, conversation_history: Optional[List[Dict]] = None) -> Dict[str, Any]:
         """
@@ -199,13 +205,11 @@ class SupabaseRAGSystem:
                 
                 return {
                     "status": "success",
-                    "response": f"""I couldn't find specific information about your question in the current GitLab documentation. 
-
-However, I can help you with these GitLab topics:
+                    "response": f"""I don't have specific information about that topic at the moment, but I'd love to help you with these GitLab areas:
 
 {suggestions}
 
-Could you try asking about one of these available topics instead? Or rephrase your question to be more specific about GitLab policies, processes, or culture.""",
+What would you like to know about? Feel free to ask about any of these topics or rephrase your question!""",
                     "sources": [],
                     "warning": "No relevant documents found - showing available topics",
                     "timestamp": datetime.now().isoformat(),
@@ -243,9 +247,9 @@ Could you try asking about one of these available topics instead? Or rephrase yo
             logger.error(error_msg)
             
             return {
-                "status": "error",
+                "status": "error", 
                 "message": error_msg,
-                "response": "I'm sorry, I encountered an error while processing your question. Please try again or rephrase your question.",
+                "response": "I'm having a bit of trouble right now, but I'll be back up and running soon. Please try asking your question again!",
                 "sources": [],
                 "timestamp": datetime.now().isoformat()
             }
