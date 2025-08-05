@@ -135,11 +135,13 @@ def initialize_rag_system():
             supabase_url = os.getenv("SUPABASE_URL")
             supabase_key = os.getenv("SUPABASE_KEY") 
             gemini_api_key = os.getenv("GEMINI_API_KEY")
+            gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
             
             # Log configurations (masking sensitive values)
             logger.debug(f"SUPABASE_URL: {supabase_url[:10]}...{supabase_url[-5:] if supabase_url else None}")
             logger.debug(f"GEMINI_API_KEY: {'*' * 8}{gemini_api_key[-4:] if gemini_api_key else None}")
             logger.debug(f"SUPABASE_KEY: {'*' * 8}{supabase_key[-4:] if supabase_key else None}")
+            logger.info(f"Using Gemini model: {gemini_model}")
             
             if not supabase_url or not supabase_key or not gemini_api_key:
                 error_msg = "❌ Missing required environment variables: "
@@ -151,19 +153,29 @@ def initialize_rag_system():
                 return None
             
             logger.info("Creating Supabase RAG system...")
+            from src.supabase_rag_system import create_supabase_rag_system
             return create_supabase_rag_system(
                 supabase_url=supabase_url,
                 supabase_key=supabase_key,
-                gemini_api_key=gemini_api_key
+                gemini_api_key=gemini_api_key,
+                gemini_model=gemini_model
             )
         else:
             # Use local hybrid RAG system
             logger.info("Using local hybrid RAG system")
             data_file = os.getenv("SAMPLE_DATA_FILE")
+            gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+            gemini_api_key = os.getenv("GEMINI_API_KEY")
+            
             logger.info(f"Loading data from: {data_file}")
+            logger.info(f"Using Gemini model: {gemini_model}")
             
             from src.hybrid_rag_system import HybridRAGSystem
-            return HybridRAGSystem()
+            return HybridRAGSystem(
+                gemini_api_key=gemini_api_key,
+                data_file=data_file,
+                gemini_model=gemini_model
+            )
             
     except Exception as e:
         error_msg = f"❌ Failed to initialize RAG system: {str(e)}"

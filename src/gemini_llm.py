@@ -102,6 +102,8 @@ When responding:
             logger.error("Google API key not provided")
             return
         
+        logger.info(f"Initializing Gemini LLM with model: {self.model_name}")
+        
         try:
             # Configure the API with REST transport (more reliable than gRPC)
             if genai:

@@ -335,7 +335,8 @@ What would you like to know about? Feel free to ask about any of these topics or
 def create_supabase_rag_system(supabase_url: str,
                              supabase_key: str,
                              gemini_api_key: str,
-                             table_name: str = "gitlab_documents") -> SupabaseRAGSystem:
+                             table_name: str = "gitlab_documents",
+                             gemini_model: str = "gemini-1.5-flash") -> SupabaseRAGSystem:
     """
     Create a cached SupabaseRAGSystem instance.
     
@@ -346,6 +347,7 @@ def create_supabase_rag_system(supabase_url: str,
         supabase_key: Supabase anon/service role key
         gemini_api_key: Google Gemini API key (for both LLM and embeddings)
         table_name: Database table name
+        gemini_model: Google Gemini model name to use (default: gemini-1.5-flash)
         
     Returns:
         SupabaseRAGSystem: Ready-to-use RAG system
@@ -354,5 +356,6 @@ def create_supabase_rag_system(supabase_url: str,
         supabase_url=supabase_url,
         supabase_key=supabase_key,
         gemini_api_key=gemini_api_key,
-        table_name=table_name
+        table_name=table_name,
+        gemini_model=gemini_model
     ) 
