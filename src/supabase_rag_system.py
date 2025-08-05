@@ -35,6 +35,7 @@ class SupabaseRAGSystem:
                  gemini_api_key: str,
                  table_name: str = "gitlab_documents",
                  gemini_model: str = "gemini-1.5-flash",
+                 safety_level: str = "standard",
                  similarity_threshold: float = 0.3,
                  max_results: int = 5):
         """
@@ -46,6 +47,7 @@ class SupabaseRAGSystem:
             gemini_api_key: Google Gemini API key (for both LLM and embeddings)
             table_name: Database table name
             gemini_model: Gemini model name
+            safety_level: Safety level to use - "standard", "reduced", or "minimal"
             similarity_threshold: Minimum similarity for search results
             max_results: Maximum search results
         """
@@ -58,7 +60,7 @@ class SupabaseRAGSystem:
         
         # Initialize components
         self.vector_store: Optional[SupabaseVectorStore] = None
-        self.llm = GeminiLLM(self.gemini_api_key, gemini_model)
+        self.llm = GeminiLLM(self.gemini_api_key, gemini_model, safety_level)
         
         # System state
         self.is_initialized = False
@@ -336,7 +338,8 @@ def create_supabase_rag_system(supabase_url: str,
                              supabase_key: str,
                              gemini_api_key: str,
                              table_name: str = "gitlab_documents",
-                             gemini_model: str = "gemini-1.5-flash") -> SupabaseRAGSystem:
+                             gemini_model: str = "gemini-1.5-flash",
+                             safety_level: str = "standard") -> SupabaseRAGSystem:
     """
     Create a cached SupabaseRAGSystem instance.
     
@@ -348,6 +351,7 @@ def create_supabase_rag_system(supabase_url: str,
         gemini_api_key: Google Gemini API key (for both LLM and embeddings)
         table_name: Database table name
         gemini_model: Google Gemini model name to use (default: gemini-1.5-flash)
+        safety_level: Safety level to use - "standard", "reduced", or "minimal"
         
     Returns:
         SupabaseRAGSystem: Ready-to-use RAG system
@@ -357,5 +361,6 @@ def create_supabase_rag_system(supabase_url: str,
         supabase_key=supabase_key,
         gemini_api_key=gemini_api_key,
         table_name=table_name,
-        gemini_model=gemini_model
+        gemini_model=gemini_model,
+        safety_level=safety_level
     ) 

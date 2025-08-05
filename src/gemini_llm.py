@@ -5,6 +5,7 @@ This module provides the LLM interface using Google's Gemini API with REST trans
 for better reliability and performance.
 """
 
+import os
 import time
 import logging
 from typing import Dict, List, Any, Optional
@@ -38,16 +39,19 @@ class GeminiLLM:
     
     def __init__(self, 
                  api_key: Optional[str] = None,
-                 model_name: str = "gemini-1.5-flash"):
+                 model_name: str = "gemini-1.5-flash",
+                 safety_level: str = "standard"):
         """
         Initialize the Gemini LLM.
         
         Args:
             api_key: Google API key. Uses config if None.
             model_name: Name of the Gemini model to use
+            safety_level: Safety level to use - "standard", "reduced", or "minimal"
         """
         self.api_key = api_key or config.GEMINI_API_KEY
         self.model_name = model_name
+        self.safety_level = os.getenv("GEMINI_SAFETY_LEVEL", safety_level).lower()
         self.model = None
         
         # Configuration
@@ -117,48 +121,41 @@ When responding:
                     "max_output_tokens": self.max_tokens,
                 }
                 
-                # Choose safety settings based on model
-                if "2.5" in self.model_name:
-                    # Less restrictive settings for 2.5 models
-                    logger.info("Using less restrictive safety settings for Gemini 2.5 model")
-                    safety_settings = [
-                        {
-                            "category": HarmCategory.HARM_CATEGORY_HARASSMENT,
-                            "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH,
-                        },
-                        {
-                            "category": HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                            "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH,
-                        },
-                        {
-                            "category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                            "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH,
-                        },
-                        {
-                            "category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                            "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH,
-                        },
-                    ]
+                # Determine safety thresholds based on configuration
+                if self.safety_level == "minimal":
+                    # Most permissive settings for special cases
+                    logger.info("Using minimal safety settings")
+                    threshold = HarmBlockThreshold.BLOCK_NONE
+                elif self.safety_level == "reduced" or "2.5" in self.model_name:
+                    # Reduced settings for Gemini 2.5 or when explicitly configured
+                    logger.info("Using reduced safety settings")
+                    threshold = HarmBlockThreshold.BLOCK_ONLY_HIGH
                 else:
-                    # Standard settings for other models
-                    safety_settings = [
-                        {
-                            "category": HarmCategory.HARM_CATEGORY_HARASSMENT,
-                            "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                        },
-                        {
-                            "category": HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                            "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                        },
-                        {
-                            "category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                            "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                        },
-                        {
-                            "category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                            "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                        },
-                    ]
+                    # Standard settings (default)
+                    logger.info("Using standard safety settings")
+                    threshold = HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
+                
+                # Apply the selected threshold to all harm categories
+                safety_settings = [
+                    {
+                        "category": HarmCategory.HARM_CATEGORY_HARASSMENT,
+                        "threshold": threshold,
+                    },
+                    {
+                        "category": HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                        "threshold": threshold,
+                    },
+                    {
+                        "category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                        "threshold": threshold,
+                    },
+                    {
+                        "category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                        "threshold": threshold,
+                    },
+                ]
+                
+                logger.info(f"Safety threshold set to: {threshold}")
                 
                 self.model = genai.GenerativeModel(
                     model_name=self.model_name,
@@ -200,23 +197,27 @@ When responding:
                 if hasattr(response, 'usage_metadata'):
                     self.total_tokens_used += getattr(response.usage_metadata, 'total_token_count', 0)
                 
-                # Check for safety blocks and handle them properly
+                # Check for safety blocks BEFORE trying to access response.text
+                # Directly check candidate finish_reason to avoid errors
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'finish_reason'):
+                        finish_reason = candidate.finish_reason
+                        if finish_reason == 2:  # 2 = SAFETY
+                            logger.warning(f"Response blocked by safety filters (finish_reason={finish_reason})")
+                            return "I apologize, but I'm unable to provide a response due to content safety guidelines. Please try a different question or rephrase your query."
+                
+                # Now safely try to access response text
                 try:
-                    if response.text:
+                    if hasattr(response, 'text') and response.text:
                         return response.text.strip()
                     else:
-                        # Check if response was blocked for safety reasons
-                        if hasattr(response, 'candidates') and response.candidates:
-                            candidate = response.candidates[0]
-                            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:  # SAFETY
-                                logger.warning("Response blocked by safety filters")
-                                return "I apologize, but I'm unable to provide a response to this query due to content safety guidelines. Could you please rephrase your question?"
-                        
-                        logger.warning("Empty response from Gemini API")
+                        # We've already checked safety blocks above, so this is a different issue
+                        logger.warning("Empty response from Gemini API (no text attribute)")
                         return "I apologize, but I couldn't generate a proper response. Please try rephrasing your question."
                 except Exception as text_error:
                     logger.warning(f"Error accessing response text: {text_error}")
-                    return "I'm having trouble processing your request. Please try again with a different question."
+                    return "I apologize, but I'm having trouble processing your request. Please try a simpler question or different phrasing."
                     
             except Exception as e:
                 self.error_count += 1
@@ -357,18 +358,20 @@ When responding:
         return "\n".join(prompt_parts)
 
 def create_gemini_llm(api_key: Optional[str] = None, 
-                      model_name: str = "gemini-1.5-flash") -> GeminiLLM:
+                      model_name: str = "gemini-1.5-flash",
+                      safety_level: str = "standard") -> GeminiLLM:
     """
     Create and initialize a Gemini LLM instance.
     
     Args:
         api_key: Google API key
         model_name: Name of the Gemini model to use
+        safety_level: Safety level to use - "standard", "reduced", or "minimal"
         
     Returns:
         GeminiLLM: Initialized Gemini LLM
     """
-    llm = GeminiLLM(api_key, model_name)
+    llm = GeminiLLM(api_key, model_name, safety_level)
     
     if not llm.is_available():
         logger.error("Failed to initialize Gemini LLM")

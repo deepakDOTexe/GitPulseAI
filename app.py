@@ -136,12 +136,14 @@ def initialize_rag_system():
             supabase_key = os.getenv("SUPABASE_KEY") 
             gemini_api_key = os.getenv("GEMINI_API_KEY")
             gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+            safety_level = os.getenv("GEMINI_SAFETY_LEVEL", "standard")
             
             # Log configurations (masking sensitive values)
             logger.debug(f"SUPABASE_URL: {supabase_url[:10]}...{supabase_url[-5:] if supabase_url else None}")
             logger.debug(f"GEMINI_API_KEY: {'*' * 8}{gemini_api_key[-4:] if gemini_api_key else None}")
             logger.debug(f"SUPABASE_KEY: {'*' * 8}{supabase_key[-4:] if supabase_key else None}")
             logger.info(f"Using Gemini model: {gemini_model}")
+            logger.info(f"Using safety level: {safety_level}")
             
             if not supabase_url or not supabase_key or not gemini_api_key:
                 error_msg = "❌ Missing required environment variables: "
@@ -158,7 +160,8 @@ def initialize_rag_system():
                 supabase_url=supabase_url,
                 supabase_key=supabase_key,
                 gemini_api_key=gemini_api_key,
-                gemini_model=gemini_model
+                gemini_model=gemini_model,
+                safety_level=safety_level
             )
         else:
             # Use local hybrid RAG system
@@ -166,15 +169,18 @@ def initialize_rag_system():
             data_file = os.getenv("SAMPLE_DATA_FILE")
             gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
             gemini_api_key = os.getenv("GEMINI_API_KEY")
+            safety_level = os.getenv("GEMINI_SAFETY_LEVEL", "standard")
             
             logger.info(f"Loading data from: {data_file}")
             logger.info(f"Using Gemini model: {gemini_model}")
+            logger.info(f"Using safety level: {safety_level}")
             
             from src.hybrid_rag_system import HybridRAGSystem
             return HybridRAGSystem(
                 gemini_api_key=gemini_api_key,
                 data_file=data_file,
-                gemini_model=gemini_model
+                gemini_model=gemini_model,
+                safety_level=safety_level
             )
             
     except Exception as e:

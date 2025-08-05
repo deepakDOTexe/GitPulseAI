@@ -32,6 +32,7 @@ class HybridRAGSystem:
                  data_file: Optional[str] = None,
                  embedding_model: str = "all-MiniLM-L6-v2",
                  gemini_model: str = "gemini-1.5-flash",
+                 safety_level: str = "standard",
                  use_simple_fallback: bool = True):
         """
         Initialize the hybrid RAG system.
@@ -41,6 +42,7 @@ class HybridRAGSystem:
             data_file: Path to GitLab data file
             embedding_model: Hugging Face embedding model name
             gemini_model: Google Gemini model name
+            safety_level: Safety level to use - "standard", "reduced", or "minimal"
             use_simple_fallback: Whether to use simple vector store as fallback
         """
         self.gemini_api_key = gemini_api_key or config.GEMINI_API_KEY
@@ -50,7 +52,7 @@ class HybridRAGSystem:
         self.data_processor = GitLabDataProcessor(data_file)
         self.vector_store = LocalVectorStore(embedding_model)
         self.simple_vector_store = SimpleVectorStore() if use_simple_fallback else None
-        self.llm = GeminiLLM(self.gemini_api_key, gemini_model)
+        self.llm = GeminiLLM(self.gemini_api_key, gemini_model, safety_level)
         
         # Track which vector store is being used
         self.using_simple_store = False
@@ -525,6 +527,7 @@ def create_hybrid_rag_system(gemini_api_key: Optional[str] = None,
                            data_file: Optional[str] = None,
                            embedding_model: str = "all-MiniLM-L6-v2",
                            gemini_model: str = "gemini-1.5-flash",
+                           safety_level: str = "standard",
                            use_simple_fallback: bool = True) -> HybridRAGSystem:
     """
     Convenience function to create and initialize a hybrid RAG system.
@@ -534,12 +537,13 @@ def create_hybrid_rag_system(gemini_api_key: Optional[str] = None,
         data_file: Path to GitLab data file
         embedding_model: Hugging Face embedding model name
         gemini_model: Google Gemini model name
+        safety_level: Safety level to use - "standard", "reduced", or "minimal"
         use_simple_fallback: Whether to use simple vector store as fallback
         
     Returns:
         HybridRAGSystem: Initialized hybrid RAG system
     """
-    rag_system = HybridRAGSystem(gemini_api_key, data_file, embedding_model, gemini_model, use_simple_fallback)
+    rag_system = HybridRAGSystem(gemini_api_key, data_file, embedding_model, gemini_model, safety_level, use_simple_fallback)
     
     if rag_system.initialize():
         logger.info("Hybrid RAG system created and initialized successfully")
