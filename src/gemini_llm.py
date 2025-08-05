@@ -117,24 +117,48 @@ When responding:
                     "max_output_tokens": self.max_tokens,
                 }
                 
-                safety_settings = [
-                    {
-                        "category": HarmCategory.HARM_CATEGORY_HARASSMENT,
-                        "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                    {
-                        "category": HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                        "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                    {
-                        "category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                        "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                    {
-                        "category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                        "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                ]
+                # Choose safety settings based on model
+                if "2.5" in self.model_name:
+                    # Less restrictive settings for 2.5 models
+                    logger.info("Using less restrictive safety settings for Gemini 2.5 model")
+                    safety_settings = [
+                        {
+                            "category": HarmCategory.HARM_CATEGORY_HARASSMENT,
+                            "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH,
+                        },
+                        {
+                            "category": HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                            "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH,
+                        },
+                        {
+                            "category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                            "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH,
+                        },
+                        {
+                            "category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                            "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH,
+                        },
+                    ]
+                else:
+                    # Standard settings for other models
+                    safety_settings = [
+                        {
+                            "category": HarmCategory.HARM_CATEGORY_HARASSMENT,
+                            "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+                        },
+                        {
+                            "category": HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                            "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+                        },
+                        {
+                            "category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                            "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+                        },
+                        {
+                            "category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                            "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+                        },
+                    ]
                 
                 self.model = genai.GenerativeModel(
                     model_name=self.model_name,
@@ -176,11 +200,23 @@ When responding:
                 if hasattr(response, 'usage_metadata'):
                     self.total_tokens_used += getattr(response.usage_metadata, 'total_token_count', 0)
                 
-                if response.text:
-                    return response.text.strip()
-                else:
-                    logger.warning("Empty response from Gemini API")
-                    return "I apologize, but I couldn't generate a proper response. Please try rephrasing your question."
+                # Check for safety blocks and handle them properly
+                try:
+                    if response.text:
+                        return response.text.strip()
+                    else:
+                        # Check if response was blocked for safety reasons
+                        if hasattr(response, 'candidates') and response.candidates:
+                            candidate = response.candidates[0]
+                            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:  # SAFETY
+                                logger.warning("Response blocked by safety filters")
+                                return "I apologize, but I'm unable to provide a response to this query due to content safety guidelines. Could you please rephrase your question?"
+                        
+                        logger.warning("Empty response from Gemini API")
+                        return "I apologize, but I couldn't generate a proper response. Please try rephrasing your question."
+                except Exception as text_error:
+                    logger.warning(f"Error accessing response text: {text_error}")
+                    return "I'm having trouble processing your request. Please try again with a different question."
                     
             except Exception as e:
                 self.error_count += 1
