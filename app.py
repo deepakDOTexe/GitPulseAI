@@ -13,19 +13,15 @@ import logging
 import sys
 warnings.filterwarnings("ignore")
 
-# Load environment variables
-from dotenv import load_dotenv
-load_dotenv()
-
-# Configure logging
-log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+# Configure logging first so we can log any startup issues
+log_level = "INFO"  # Default to INFO until we can read from secrets
 log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-log_file = os.getenv("LOG_FILE", "logs/app.log")
+log_file = "logs/app.log"  # Default log location
 
 # Ensure log directory exists
 os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
-# Setup logging to both file and console
+# Setup initial logging
 logging.basicConfig(
     level=getattr(logging, log_level),
     format=log_format,
@@ -36,6 +32,63 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger("GitPulseAI")
+logger.info("Starting GitPulseAI application")
+
+# Load directly from Streamlit secrets instead of .env
+try:
+    logger.info("Loading configuration from Streamlit secrets")
+    # Copy secrets to environment variables for compatibility with existing code
+    for key, value in st.secrets.items():
+        if isinstance(value, dict):
+            # Skip nested sections
+            continue
+        # Set as environment variable
+        os.environ[key] = str(value)
+        if key in ["GEMINI_API_KEY", "SUPABASE_KEY"]:
+            # Don't log sensitive values
+            logger.debug(f"Loaded secret: {key}=******")
+        else:
+            logger.debug(f"Loaded config: {key}={value}")
+            
+    # Update log level from secrets if available
+    if "LOG_LEVEL" in st.secrets:
+        log_level = st.secrets["LOG_LEVEL"].upper()
+        logging.getLogger().setLevel(getattr(logging, log_level))
+        logger.info(f"Updated log level to {log_level}")
+        
+    # Update log file location if specified in secrets
+    if "LOG_FILE" in st.secrets:
+        log_file = st.secrets["LOG_FILE"]
+        logger.info(f"Log file location: {log_file}")
+        
+    logger.info(f"Successfully loaded {len(st.secrets)} configuration values")
+except Exception as e:
+    logger.exception("Error loading from Streamlit secrets")
+    logger.warning("Continuing with default configuration")
+    
+    # Fallback to .env file if secrets fail
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        logger.info("Loaded fallback configuration from .env file")
+    except Exception as e:
+        logger.exception("Error loading .env file")
+        logger.warning("Using default configuration values")
+
+# Add additional log file handler if log location changed
+if "LOG_FILE" in st.secrets:
+    try:
+        for handler in logging.getLogger().handlers:
+            if isinstance(handler, logging.FileHandler):
+                handler.close()
+                logging.getLogger().removeHandler(handler)
+                
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(logging.Formatter(log_format))
+        logging.getLogger().addHandler(file_handler)
+        logger.info(f"Updated log file handler to {log_file}")
+    except Exception as e:
+        logger.exception(f"Error updating log file handler to {log_file}")
 
 # 1. App title
 st.set_page_config(
@@ -46,9 +99,27 @@ st.set_page_config(
 )
 
 # Detect deployment mode
-USE_SUPABASE = os.getenv("USE_SUPABASE", "false").lower() == "true"
-logger.info(f"Deployment mode: {'Cloud' if USE_SUPABASE else 'Local'}")
-logger.debug(f"USE_SUPABASE environment variable: {os.getenv('USE_SUPABASE')}")
+try:
+    # Get the raw value first for debugging
+    raw_supabase_value = os.environ.get("USE_SUPABASE", "false")
+    logger.info(f"Raw USE_SUPABASE value: '{raw_supabase_value}'")
+    
+    # Handle different formats of boolean values
+    if raw_supabase_value.lower() in ["true", "yes", "1", "t", "y"]:
+        USE_SUPABASE = True
+    else:
+        USE_SUPABASE = False
+    
+    # Log the decision
+    deployment_mode = "Cloud" if USE_SUPABASE else "Local"
+    logger.info(f"Deployment mode set to: {deployment_mode} mode")
+    
+    # Display the mode in the UI for verification
+    st.sidebar.success(f"Debug: Mode = {deployment_mode}", icon="🔧")
+except Exception as e:
+    logger.exception("Error determining deployment mode")
+    USE_SUPABASE = False
+    logger.warning("Defaulting to Local mode due to error")
 
 @st.cache_resource
 def initialize_rag_system():
