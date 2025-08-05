@@ -9,11 +9,33 @@ import os
 import streamlit as st
 from datetime import datetime
 import warnings
+import logging
+import sys
 warnings.filterwarnings("ignore")
 
 # Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
+
+# Configure logging
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+log_file = os.getenv("LOG_FILE", "logs/app.log")
+
+# Ensure log directory exists
+os.makedirs(os.path.dirname(log_file), exist_ok=True)
+
+# Setup logging to both file and console
+logging.basicConfig(
+    level=getattr(logging, log_level),
+    format=log_format,
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+logger = logging.getLogger("GitPulseAI")
 
 # 1. App title
 st.set_page_config(
@@ -25,23 +47,39 @@ st.set_page_config(
 
 # Detect deployment mode
 USE_SUPABASE = os.getenv("USE_SUPABASE", "false").lower() == "true"
+logger.info(f"Deployment mode: {'Cloud' if USE_SUPABASE else 'Local'}")
+logger.debug(f"USE_SUPABASE environment variable: {os.getenv('USE_SUPABASE')}")
 
 @st.cache_resource
 def initialize_rag_system():
     """Initialize the appropriate RAG system based on environment."""
     try:
+        logger.info("Initializing RAG system...")
+        
         if USE_SUPABASE:
             # Use Supabase cloud RAG system
+            logger.info("Using Supabase cloud RAG system")
             from src.supabase_rag_system import create_supabase_rag_system
             
             supabase_url = os.getenv("SUPABASE_URL")
             supabase_key = os.getenv("SUPABASE_KEY") 
             gemini_api_key = os.getenv("GEMINI_API_KEY")
             
+            # Log configurations (masking sensitive values)
+            logger.debug(f"SUPABASE_URL: {supabase_url[:10]}...{supabase_url[-5:] if supabase_url else None}")
+            logger.debug(f"GEMINI_API_KEY: {'*' * 8}{gemini_api_key[-4:] if gemini_api_key else None}")
+            logger.debug(f"SUPABASE_KEY: {'*' * 8}{supabase_key[-4:] if supabase_key else None}")
+            
             if not supabase_url or not supabase_key or not gemini_api_key:
-                st.error("❌ Missing required environment variables: SUPABASE_URL, SUPABASE_KEY, or GEMINI_API_KEY")
+                error_msg = "❌ Missing required environment variables: "
+                error_msg += "SUPABASE_URL, " if not supabase_url else ""
+                error_msg += "SUPABASE_KEY, " if not supabase_key else ""
+                error_msg += "GEMINI_API_KEY" if not gemini_api_key else ""
+                logger.error(error_msg)
+                st.error(error_msg)
                 return None
             
+            logger.info("Creating Supabase RAG system...")
             return create_supabase_rag_system(
                 supabase_url=supabase_url,
                 supabase_key=supabase_key,
@@ -49,11 +87,17 @@ def initialize_rag_system():
             )
         else:
             # Use local hybrid RAG system
+            logger.info("Using local hybrid RAG system")
+            data_file = os.getenv("SAMPLE_DATA_FILE")
+            logger.info(f"Loading data from: {data_file}")
+            
             from src.hybrid_rag_system import HybridRAGSystem
             return HybridRAGSystem()
             
     except Exception as e:
-        st.error(f"❌ Failed to initialize RAG system: {str(e)}")
+        error_msg = f"❌ Failed to initialize RAG system: {str(e)}"
+        logger.exception(error_msg)
+        st.error(error_msg)
         return None
 
 # Initialize RAG system
@@ -164,30 +208,57 @@ for i, message in enumerate(st.session_state.messages):
 # 3. Create the LLM response generation function
 def generate_gitpulse_response(prompt_input):
     """Generate response using GitPulseAI RAG system."""
+    start_time = datetime.now()
+    query_id = f"q-{start_time.strftime('%Y%m%d-%H%M%S')}"
+    
+    logger.info(f"[{query_id}] Processing query: {prompt_input[:50]}...")
+    
     try:
         # Check if RAG system is available
         if not rag_system:
+            logger.error(f"[{query_id}] RAG system not available")
             return {"response": "❌ RAG system not available", "sources": []}
         
         # Initialize RAG system if needed
+        logger.debug(f"[{query_id}] Initializing RAG system")
         if not rag_system.initialize():
+            logger.error(f"[{query_id}] Failed to initialize RAG system")
             return {"response": "❌ Failed to initialize RAG system", "sources": []}
         
         # Get response from RAG system
-        response_data = rag_system.query(prompt_input, st.session_state.messages[:-1])
+        logger.info(f"[{query_id}] Sending query to RAG system")
+        conversation_context = st.session_state.messages[:-1]
+        logger.debug(f"[{query_id}] Context size: {len(conversation_context)} messages")
+        
+        response_data = rag_system.query(prompt_input, conversation_context)
+        
+        # Calculate response time
+        response_time = (datetime.now() - start_time).total_seconds()
+        logger.info(f"[{query_id}] Response generated in {response_time:.2f}s")
         
         if response_data.get("status") == "success":
+            source_count = len(response_data.get("sources", []))
+            logger.info(f"[{query_id}] Success - {source_count} sources found")
+            
+            # Log source details at debug level
+            if source_count > 0:
+                for i, source in enumerate(response_data.get("sources", [])[:3]):
+                    logger.debug(f"[{query_id}] Source {i+1}: {source.get('title', 'Unknown')} - Score: {source.get('similarity_score', 0):.3f}")
+            
             return {
                 "response": response_data.get("response", "I couldn't generate a response."),
                 "sources": response_data.get("sources", [])
             }
         else:
+            error_msg = response_data.get('message', 'Something went wrong.')
+            logger.warning(f"[{query_id}] Response error: {error_msg}")
             return {
-                "response": f"❌ {response_data.get('message', 'Something went wrong.')}",
+                "response": f"❌ {error_msg}",
                 "sources": []
             }
             
     except Exception as e:
+        logger.exception(f"[{query_id}] Exception while generating response: {str(e)}")
         return {
             "response": f"❌ Sorry, I encountered an error: {str(e)}",
             "sources": []
