@@ -2,15 +2,21 @@
 
 A modern Streamlit-based AI chatbot that helps users navigate GitLab's handbook and policies through conversational AI using Google Gemini and RAG (Retrieval-Augmented Generation) architecture.
 
+## 🌐 Live Demo
+
+**[Try the live demo here!](https://gitpulseai-dkatre-h7ytx2mpw9awcdfdujleno.streamlit.app/)**
+
 ## 🚀 Features
 
 - **Conversational AI**: Natural language interaction with GitLab documentation
 - **Dual Deployment Modes**: Local development or cloud deployment with Supabase
-- **Google Gemini Integration**: Powered by Google's Gemini LLM and embeddings
+- **Google Gemini Integration**: Supports Gemini 1.5 and 2.5 models
 - **Clean Native UI**: Built with Streamlit's native chat components
-- **Source Citations**: Responses include references to original GitLab pages
+- **Natural Responses**: Conversational, helpful responses without source citations
 - **Hybrid Search**: Vector similarity with keyword fallback
+- **Comprehensive Coverage**: Complete crawling of GitLab handbook and direction pages
 - **Modern Architecture**: OpenAI-free, cost-effective solution
+- **Configurable Safety Settings**: Adjustable content filtering for different use cases
 
 ## 🛠️ Quick Setup
 
@@ -51,17 +57,25 @@ A modern Streamlit-based AI chatbot that helps users navigate GitLab's handbook 
 GEMINI_API_KEY=your_gemini_api_key_here
 
 # Optional (for local mode)
+GEMINI_MODEL=gemini-1.5-flash  # Options: gemini-1.5-flash, gemini-1.5-pro, gemini-2.5-flash, gemini-2.5-pro
+GEMINI_SAFETY_LEVEL=standard   # Options: standard, reduced, minimal
 SAMPLE_DATA_FILE=data/gitlab_comprehensive_handbook.json
 USE_SUPABASE=false
+LOG_LEVEL=INFO                 # Options: DEBUG, INFO, WARNING, ERROR
 ```
 
-### **Cloud Deployment (.env)**
-```env
+### **Cloud Deployment (.streamlit/secrets.toml)**
+```toml
 # Required
-GEMINI_API_KEY=your_gemini_api_key_here
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_supabase_anon_key_here
-USE_SUPABASE=true
+GEMINI_API_KEY = "your_gemini_api_key_here"
+SUPABASE_URL = "https://your-project.supabase.co"
+SUPABASE_KEY = "your_supabase_anon_key_here"
+USE_SUPABASE = true
+
+# Optional
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_SAFETY_LEVEL = "reduced"  # Options: standard, reduced, minimal
+LOG_LEVEL = "INFO"
 ```
 
 ## 🌩️ Cloud Deployment (Supabase)
@@ -84,7 +98,7 @@ For production deployment with Supabase vector database:
 
 4. **Deploy to Streamlit Cloud**
    - Connect your GitHub repository
-   - Set environment variables
+   - Create `.streamlit/secrets.toml` file with your environment variables
    - Deploy!
 
 ## 📁 Project Structure
@@ -109,15 +123,18 @@ GitPulseAI/
 
 1. **Start the application**: `streamlit run app.py`
 2. **Choose example questions** from the sidebar or type your own
-3. **Ask about GitLab**: Values, policies, remote work, culture, etc.
-4. **Get sourced responses** with references to original documentation
+3. **Ask about GitLab**: Values, policies, remote work, culture, diversity initiatives, etc.
+4. **Get natural responses** in a conversational, helpful tone
 
 ## 🔧 Development
 
 ### **Adding New Data**
 ```bash
-# Update GitLab handbook data
+# Update GitLab handbook data (limited pages)
 python scripts/extract_comprehensive_handbook.py
+
+# Comprehensive crawling of all GitLab handbook and direction pages
+python scripts/comprehensive_gitlab_scraper.py
 
 # For cloud deployment, migrate to Supabase
 python scripts/migrate_to_supabase.py
@@ -139,6 +156,9 @@ python scripts/migrate_to_supabase.py
 - **Cloud Mode**: Supabase vector DB + Gemini embeddings + Gemini LLM
 - **Frontend**: Streamlit with native chat components
 - **Data**: GitLab handbook pages in structured JSON format
+- **LLM Options**: Support for various Gemini models (1.5-flash, 1.5-pro, 2.5-flash, 2.5-pro)
+- **Safety Levels**: Configurable content filtering (standard, reduced, minimal)
+- **Logging**: Comprehensive logging system for debugging and monitoring
 
 ## 🤝 Contributing
 
