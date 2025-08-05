@@ -62,6 +62,35 @@ else:
     
 # Now run the main app
 logger.info("Importing main app module...")
-from app import *
 
-logger.info("GitPulseAI launcher complete")
+try:
+    # Prevent traceback suppression
+    import sys
+    sys.tracebacklimit = 1000
+    
+    # Emergency debugging
+    print("==== EMERGENCY DEBUG INFO ====")
+    print(f"Python version: {sys.version}")
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Environment variables: USE_SUPABASE={os.environ.get('USE_SUPABASE')}")
+    print("============================")
+    
+    # Import the main app with full error handling
+    from app import *
+    logger.info("GitPulseAI launcher complete")
+except Exception as e:
+    logger.exception("!!! CRITICAL STARTUP FAILURE !!!")
+    print(f"FATAL ERROR: {str(e)}")
+    import traceback
+    traceback_text = traceback.format_exc()
+    print(traceback_text)
+    
+    # Try to display error in Streamlit
+    try:
+        import streamlit as st
+        st.error("Application failed to start")
+        st.error(str(e))
+        st.code(traceback_text)
+        st.warning("Check the logs and console for detailed error information")
+    except:
+        print("Could not display error in Streamlit")

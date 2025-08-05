@@ -176,8 +176,17 @@ with st.sidebar:
                     st.write(f"📊 Relevance: {source['similarity_score']:.1%}")
 
 # 2. Store LLM generated responses
-if "messages" not in st.session_state.keys():
-    st.session_state.messages = [{"role": "assistant", "content": "How may I help you explore GitLab's handbook today?"}]
+try:
+    logger.info("Initializing chat session state")
+    if "messages" not in st.session_state.keys():
+        logger.info("Creating initial message in session state")
+        st.session_state.messages = [{"role": "assistant", "content": "How may I help you explore GitLab's handbook today?"}]
+    logger.info(f"Current session state has {len(st.session_state.messages)} messages")
+except Exception as e:
+    logger.exception("CRITICAL ERROR during session state initialization")
+    st.error(f"Session initialization error: {str(e)}")
+    import traceback
+    st.code(traceback.format_exc())
 
 # Welcome banner (only show when no chat history except initial message)
 if len(st.session_state.messages) == 1:
@@ -188,22 +197,46 @@ if len(st.session_state.messages) == 1:
     )
 
 # 2. Display chat messages
-for i, message in enumerate(st.session_state.messages):
-    with st.chat_message(message["role"]):
-        st.write(message["content"])
+try:
+    logger.info("Starting chat message display")
+    
+    # Verify messages exist and have proper format
+    if not isinstance(st.session_state.messages, list):
+        logger.error(f"Messages is not a list: {type(st.session_state.messages)}")
+        st.error("Invalid message format detected. Resetting chat.")
+        st.session_state.messages = [{"role": "assistant", "content": "How may I help you explore GitLab's handbook today?"}]
+    
+    for i, message in enumerate(st.session_state.messages):
+        logger.debug(f"Displaying message {i}: role={message.get('role', 'unknown')}, content_length={len(message.get('content', ''))}")
         
-        # Add response feedback for assistant messages (except first welcome)
-        if message["role"] == "assistant" and i > 0:
-            col1, col2, col3, col4 = st.columns([1, 1, 1, 6])
-            with col1:
-                if st.button("👍", key=f"thumb_up_{i}", help="Helpful response"):
-                    st.success("Thanks for your feedback!", icon="✅")
-            with col2:
-                if st.button("👎", key=f"thumb_down_{i}", help="Not helpful"):
-                    st.info("Thanks for your feedback! We'll improve.", icon="📝")
-            with col3:
-                if st.button("📋", key=f"copy_{i}", help="Copy response"):
-                    st.code(message["content"], language=None)
+        # Verify message format
+        if not isinstance(message, dict) or 'role' not in message or 'content' not in message:
+            logger.warning(f"Skipping malformed message at index {i}: {message}")
+            continue
+            
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
+            
+            # Add response feedback for assistant messages (except first welcome)
+            if message["role"] == "assistant" and i > 0:
+                try:
+                    col1, col2, col3, col4 = st.columns([1, 1, 1, 6])
+                    with col1:
+                        if st.button("👍", key=f"thumb_up_{i}", help="Helpful response"):
+                            st.success("Thanks for your feedback!", icon="✅")
+                    with col2:
+                        if st.button("👎", key=f"thumb_down_{i}", help="Not helpful"):
+                            st.info("Thanks for your feedback! We'll improve.", icon="📝")
+                    with col3:
+                        if st.button("📋", key=f"copy_{i}", help="Copy response"):
+                            st.code(message["content"], language=None)
+                except Exception as e:
+                    logger.exception(f"Error displaying feedback buttons for message {i}")
+except Exception as e:
+    logger.exception("CRITICAL ERROR while displaying chat messages")
+    st.error("Error displaying chat messages. Please try refreshing the page.")
+    import traceback
+    st.code(traceback.format_exc())
 
 # 3. Create the LLM response generation function
 def generate_gitpulse_response(prompt_input):
@@ -272,15 +305,51 @@ if prompt := st.chat_input("Ask about GitLab's handbook, policies, values, and c
         st.write(prompt)
 
 # 5. Generate a new LLM response
-if st.session_state.messages[-1]["role"] != "assistant":
-    with st.spinner("🤔 Thinking..."):
-        response_data = generate_gitpulse_response(st.session_state.messages[-1]["content"])
+try:
+    logger.info("Checking if new response is needed")
     
-    # Store sources for sidebar display
-    if response_data["sources"]:
-        st.session_state.last_sources = response_data["sources"]
+    # Safety check for empty messages array
+    if not st.session_state.messages:
+        logger.warning("Messages array is empty, resetting")
+        st.session_state.messages = [{"role": "assistant", "content": "How may I help you explore GitLab's handbook today?"}]
+        st.rerun()
     
-    # Add assistant response to session state
-    message = {"role": "assistant", "content": response_data["response"]}
-    st.session_state.messages.append(message)
-    st.rerun() 
+    # Check if last message is from user
+    if st.session_state.messages[-1]["role"] != "assistant":
+        user_message = st.session_state.messages[-1]["content"]
+        logger.info(f"Generating response to: {user_message[:50]}...")
+        
+        with st.spinner("🤔 Thinking..."):
+            try:
+                response_data = generate_gitpulse_response(user_message)
+                logger.info("Response generated successfully")
+            except Exception as e:
+                logger.exception("Error during response generation")
+                response_data = {
+                    "response": f"⚠️ I encountered an error while generating a response: {str(e)}",
+                    "sources": []
+                }
+        
+        # Store sources for sidebar display
+        try:
+            if response_data.get("sources"):
+                logger.debug(f"Storing {len(response_data['sources'])} sources in session state")
+                st.session_state.last_sources = response_data["sources"]
+        except Exception as e:
+            logger.exception("Error storing sources")
+        
+        # Add assistant response to session state
+        try:
+            message = {"role": "assistant", "content": response_data.get("response", "Error generating response")}
+            logger.info(f"Adding assistant response ({len(message['content'])} chars)")
+            st.session_state.messages.append(message)
+            logger.info(f"Session now has {len(st.session_state.messages)} messages")
+            st.rerun()
+        except Exception as e:
+            logger.exception("Error adding response to session state")
+            st.error(f"Failed to process response: {str(e)}")
+except Exception as e:
+    logger.exception("CRITICAL ERROR in response generation flow")
+    st.error("An unexpected error occurred. Please refresh the page and try again.")
+    import traceback
+    st.code(traceback.format_exc()) 
