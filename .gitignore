@@ -66,7 +66,7 @@ htmlcov/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
+gitpulseai/
 # Pyre type checker
 .pyre/
 
